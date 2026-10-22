@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#ffe6d5">
+  <title>Crack &amp; Sizzle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene" aria-label="3D kitchen"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <section id="order-card" class="card">
+        <div class="order-top">
+          <div id="cust-avatar" class="avatar">🐻</div>
+          <div class="order-text">
+            <div id="order-num" class="tiny">Order 1 / 5</div>
+            <div id="order-recipe" class="recipe">Sunny-side up</div>
+            <div id="order-doneness" class="doneness">Runny yolk</div>
+          </div>
+        </div>
+        <div id="order-extras" class="extras"></div>
+        <div class="patience"><div id="patience-bar"></div></div>
+      </section>
+
+      <section id="top-right">
+        <div id="score-pill" class="pill"><span class="tiny">Score</span><b id="score-val">0</b></div>
+        <button id="btn-camera" class="round-btn" title="Reset camera" aria-label="Reset camera">
+          <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <button id="btn-sound" class="round-btn" title="Sound settings" aria-label="Sound settings">
+          <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button id="btn-pause" class="round-btn" title="Pause" aria-label="Pause">
+          <svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.5" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.5" fill="currentColor"/></svg>
+        </button>
+      </section>
+
+      <div id="hint" class="hint"></div>
+      <div id="guide-chip" class="guide-chip hidden"><span class="dot"></span><span id="guide-text">Raw</span><div class="guide-meter"><div id="guide-fill"></div></div></div>
+
+      <aside id="heat-panel" class="card">
+        <div class="tiny center">Heat</div>
+        <div id="dial" class="dial" role="slider" aria-label="Stove heat" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0" tabindex="0">
+          <svg viewBox="0 0 120 120">
+            <path id="dial-arc-bg" d="" fill="none" stroke="#f0dfd3" stroke-width="10" stroke-linecap="round"/>
+            <path id="dial-arc" d="" fill="none" stroke="url(#heatgrad)" stroke-width="10" stroke-linecap="round"/>
+            <defs><linearGradient id="heatgrad" x1="0" x2="1"><stop offset="0" stop-color="#7cc6ff"/><stop offset=".55" stop-color="#ffb347"/><stop offset="1" stop-color="#ff5e5e"/></linearGradient></defs>
+            <g id="dial-knob"><circle cx="60" cy="60" r="34" fill="#fffaf5" stroke="#e9d3c4" stroke-width="3"/><rect x="56" y="30" width="8" height="22" rx="4" fill="#ff8a7a"/></g>
+          </svg>
+          <div id="dial-label" class="dial-label">Off</div>
+        </div>
+        <div class="thermo"><div id="thermo-fill"></div></div>
+        <div id="temp-readout" class="tiny center">20°C</div>
+      </aside>
+
+      <nav id="tray2" class="tray tray2" aria-label="Ingredient shelf">
+        <button class="tool" data-tool="bacon"><span class="ico">🥓</span><span>Bacon</span></button>
+        <button class="tool" data-tool="ham"><span class="ico">🍖</span><span>Ham</span></button>
+        <button class="tool" data-tool="sausage"><span class="ico">🌭</span><span>Sausage</span></button>
+        <button class="tool" data-tool="cheese"><span class="ico">🧀</span><span>Cheese</span></button>
+        <button class="tool" data-tool="rice"><span class="ico">🍚</span><span>Rice</span></button>
+      </nav>
+
+      <nav id="tray" class="tray">
+        <button class="tool" data-tool="butter"><span class="ico">🧈</span><span>Butter</span></button>
+        <button class="tool" data-tool="egg"><span class="ico">🥚</span><span>Egg</span></button>
+        <button class="tool" data-tool="spatula"><span class="ico">
+          <svg viewBox="0 0 24 24"><rect x="9" y="2" width="8" height="9" rx="2" fill="#cfd8e3" stroke="#7b8796" stroke-width="1.2"/><path d="M11 4.5v4M13 4.5v4M15 4.5v4" stroke="#7b8796" stroke-width="1"/><rect x="11.6" y="10" width="2.8" height="12" rx="1.4" fill="#7fd1b9"/></svg>
+        </span><span>Spatula</span></button>
+        <button class="tool" data-tool="salt"><span class="ico">🧂</span><span>Salt</span></button>
+        <button class="tool" data-tool="pepper"><span class="ico pepper-ico">●</span><span>Pepper</span></button>
+        <button class="tool" data-tool="toss"><span class="ico">🗑️</span><span>Toss</span></button>
+        <button id="btn-serve" class="serve" disabled><span class="ico">🛎️</span><span>Serve</span></button>
+      </nav>
+
+      <div id="tutorial-panel" class="card hidden">
+        <div class="tut-head"><b>Tutorial</b><button id="tut-skip" class="link-btn">Skip</button></div>
+        <ol id="tut-steps"></ol>
+      </div>
+
+      <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <!-- Screens -->
+    <div id="screen-title" class="screen">
+      <div class="panel title-panel">
+        <div class="logo"><span class="logo-egg">🍳</span><h1>Crack <i>&amp;</i> Sizzle</h1></div>
+        <p class="sub">A cozy little egg kitchen — eggs, omelettes, fried rice, bacon &amp; more</p>
+        <div class="menu-buttons">
+          <button id="btn-play" class="big-btn primary">Order Mode</button>
+          <button id="btn-free" class="big-btn">Free Cook</button>
+          <button id="btn-tutorial" class="big-btn soft">How to Play</button>
+        </div>
+        <p id="best-score" class="tiny"></p>
+        <p class="tiny muted">Drag empty space to look around · pinch to zoom · drag objects to move them</p>
+      </div>
+    </div>
+
+    <div id="screen-pause" class="screen hidden">
+      <div class="panel">
+        <h2>Paused</h2>
+        <div class="menu-buttons">
+          <button id="btn-resume" class="big-btn primary">Resume</button>
+          <button id="btn-restart" class="big-btn">Restart</button>
+          <button id="btn-menu" class="big-btn soft">Main Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-settings" class="screen hidden">
+      <div class="panel">
+        <h2>Settings</h2>
+        <label class="row">Music <input id="vol-music" type="range" min="0" max="1" step="0.05"></label>
+        <label class="row">Sound FX <input id="vol-sfx" type="range" min="0" max="1" step="0.05"></label>
+        <label class="row">Cooking guide <input id="opt-guide" type="checkbox" class="switch"></label>
+        <label class="row">Hints <input id="opt-hints" type="checkbox" class="switch"></label>
+        <label class="row">Quality <select id="opt-quality"><option value="auto">Auto</option><option value="high">High</option><option value="low">Battery saver</option></select></label>
+        <button id="btn-settings-close" class="big-btn primary">Done</button>
+      </div>
+    </div>
+
+    <div id="screen-dish" class="screen dim hidden">
+      <div class="panel dish-panel">
+        <div id="dish-stars" class="stars"></div>
+        <h2 id="dish-title">Delicious!</h2>
+        <div id="dish-score" class="big-score">0</div>
+        <ul id="dish-breakdown" class="breakdown"></ul>
+        <p id="dish-quote" class="quote"></p>
+        <button id="btn-next" class="big-btn primary">Next Order</button>
+      </div>
+    </div>
+
+    <div id="screen-results" class="screen hidden">
+      <div class="panel">
+        <h2>Shift Complete!</h2>
+        <div id="res-stars" class="stars"></div>
+        <div id="res-total" class="big-score">0</div>
+        <p id="res-best" class="tiny"></p>
+        <ul id="res-list" class="breakdown"></ul>
+        <div class="menu-buttons">
+          <button id="btn-again" class="big-btn primary">Play Again</button>
+          <button id="btn-res-free" class="big-btn">Free Cook</button>
+          <button id="btn-res-menu" class="big-btn soft">Main Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-loading" class="screen">
+      <div class="panel"><div class="spinner">🥚</div><p>Warming up the kitchen…</p></div>
+    </div>
+
+    <div id="screen-nogl" class="screen hidden">
+      <div class="panel">
+        <h2>3D isn't available</h2>
+        <p>Crack &amp; Sizzle needs WebGL. Try enabling hardware acceleration, updating your browser, or opening this page in Safari / Chrome.</p>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

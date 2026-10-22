@@ -2,9 +2,10 @@
 import * as THREE from 'three';
 import { HOME, PAN, PLATE, BURNER, clampToCounter, surfaceHeight } from './config.js';
 import { makeWholeEgg, makeButterPat } from './props.js';
+import { Ingredient, ING } from './ingredients.js';
 import { audio } from './audio.js';
 
-const RADIUS = { pan: 1.35, plate: 1.2, carton: 1.05, butterDish: 0.85, salt: 0.35, pepper: 0.35, spatula: 0.45 };
+const RADIUS = { pan: 1.35, plate: 1.2, carton: 1.05, butterDish: 0.85, salt: 0.35, pepper: 0.35, spatula: 0.45, fridge: 1.5 };
 const _v = new THREE.Vector3(), _plane = new THREE.Plane(), _ndc = new THREE.Vector2();
 
 export class Interactor {
@@ -34,7 +35,7 @@ export class Interactor {
   pick(e) {
     this.setRay(e);
     const p = this.props;
-    const list = [p.pan, p.plate, p.carton, p.butterDish, p.salt, p.pepper, p.spatula, this.kitchen.knob];
+    const list = [p.pan, p.plate, p.carton, p.butterDish, p.salt, p.pepper, p.spatula, p.fridge, this.kitchen.knob];
     if (this.game.crack) list.unshift(this.game.crack.group);
     const hits = this.ray.intersectObjects(list, true);
     for (const h of hits) {
@@ -76,18 +77,23 @@ export class Interactor {
     const g = this.game, p = this.props;
     const d = { id: e.pointerId, kind: hit.kind, x0: e.clientX, y0: e.clientY, moved: false, t0: performance.now(), last: performance.now() };
     switch (hit.kind) {
+      case 'fridgeItem': this.trayDown(hit.object.userData.kind, e); return; // tap = drops into the pan, drag = carry it
       case 'knob': d.heat0 = g.heat; break;
       case 'crackEgg':
         if (g.crack.stage === 'hover') g.crackTap();
         d.sep0 = g.crack.sep; d.lastSep = g.crack.sep; break;
       case 'panFloor': {
         const f = g.food;
+        let mode = 'stir';
         if (f && g.foodLoc === 'pan' && f.landed) {
           f.group.getWorldPosition(_v);
           const near = Math.hypot(hit.point.x - _v.x, hit.point.z - _v.z) < (f.scrambled ? 0.55 : 0.75);
-          return this.beginSpatula(e, near && !f.scrambled ? 'lift' : 'stir', d);
+          if (near && !f.scrambled) mode = 'lift';
         }
-        return this.beginSpatula(e, 'stir', d);
+        // pressing on bacon / ham / sausage / cheese lifts it; pressing on rice tosses it
+        const lp = g.panAnchor.worldToLocal(hit.point.clone()), ni = g._ingNear(lp.x, lp.z);
+        if (ni && ni.ing.kind !== 'rice') mode = 'lift';
+        return this.beginSpatula(e, mode, d);
       }
       case 'spatula': return this.beginSpatula(e, 'free', d);
       case 'salt': case 'pepper': return this.beginShaker(hit.kind, e, d);
@@ -115,12 +121,15 @@ export class Interactor {
   }
   beginHeld(type, e, d, cartonEgg = null) {
     d.kind = 'held'; d.type = type;
-    const m = type === 'egg' ? makeWholeEgg(this.game.mats, cartonEgg ? cartonEgg.userData.brown : Math.random() < 0.3) : makeButterPat(this.game.mats);
+    const isIng = type.startsWith('ing:');
+    if (isIng) d.ing = new Ingredient(type.slice(4), { buttered: this.game.butter.amount > 0 });
+    const m = isIng ? d.ing.group : type === 'egg' ? makeWholeEgg(this.game.mats, cartonEgg ? cartonEgg.userData.brown : Math.random() < 0.3) : makeButterPat(this.game.mats);
     m.castShadow = true;
+    if (isIng) { m.scale.setScalar(0.75); const p0 = this.planePoint(e, 1.1); if (p0) m.position.copy(p0); }
     d.brown = type === 'egg' && m.material === this.game.mats.eggShellBrown;
     if (cartonEgg) { cartonEgg.visible = false; d.cartonEgg = cartonEgg; cartonEgg.getWorldPosition(m.position); }
     else if (type === 'butter') this.props.butterDish.getWorldPosition(m.position).setY(0.4);
-    else this.props.carton.getWorldPosition(m.position).setY(0.6);
+    else if (!isIng) this.props.carton.getWorldPosition(m.position).setY(0.6);
     this.game.scene.add(m);
     d.mesh = m; this.drag = d; audio.pick();
     this.moveHeld(e, 1);
@@ -142,12 +151,14 @@ export class Interactor {
   }
   trayPromote(e) {
     const { tool } = this.pending; this.pending = null;
+    if (tool === 'flip' || tool === 'toss') return this.trayTap(tool);
     const d = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: true, t0: performance.now(), last: performance.now(), fromTray: true };
     if (tool === 'butter') this.beginHeld('butter', e, d);
     else if (tool === 'egg') {
       const eggs = this.props.carton.userData.eggs.filter((x) => x.visible);
       this.beginHeld('egg', e, d, eggs[eggs.length - 1] || null);
     } else if (tool === 'spatula') this.beginSpatula(e, 'free', d);
+    else if (ING[tool]) this.beginHeld('ing:' + tool, e, d);
     else if (tool === 'salt' || tool === 'pepper') { this.beginShaker(tool, e, d); d.moved = true; this.moveShaker(e, 0.016); }
   }
   trayTap(tool) {
@@ -155,8 +166,10 @@ export class Interactor {
     if (tool === 'butter') g.autoButter();
     else if (tool === 'egg') this.autoEgg();
     else if (tool === 'spatula') g.toast('Drag the spatula into the pan — touch the egg to lift it');
+    else if (ING[tool]) g.autoIngredient(tool);
     else if (tool === 'salt' || tool === 'pepper') g.autoSeason(tool);
     else if (tool === 'toss') g.toss();
+    else if (tool === 'flip') g.autoFlip();
   }
   autoEgg() {
     const g = this.game;
@@ -263,7 +276,9 @@ export class Interactor {
     switch (d.kind) {
       case 'spatula': {
         const v = this.velocity();
-        if (g.foodLoc === 'spatula' && v.y < -900 && Math.abs(v.y) > 1.5 * Math.abs(v.x)) g.flipFood(-v.y); // flick-release flip
+        const flick = v.y < -650 && Math.abs(v.y) > 1.2 * Math.abs(v.x);
+        if (g.foodLoc === 'spatula' && flick) g.flipFood(-v.y); // flick-release flip
+        else if (g.carry && flick) g.flipIng(-v.y);
         g.spatulaRelease(); break;
       }
       case 'shaker':
@@ -277,6 +292,16 @@ export class Interactor {
         if (!d.moved && !d.fromTray) { // a tap on the carton / butter block
           g.scene.remove(m);
           if (d.type === 'egg') { if (d.cartonEgg) d.cartonEgg.visible = false; this.autoEgg(); } else g.autoButter();
+          break;
+        }
+        if (d.ing) {
+          const plate = this.props.plate, dPlate = Math.hypot(m.position.x - plate.position.x, m.position.z - plate.position.z), kind = d.ing.kind;
+          const toLoc = dPan < PAN.rimR + 0.35 && dPan <= dPlate ? 'pan' : dPlate < PLATE.r + 0.35 ? 'plate' : null;
+          if (toLoc && g.canAddIng(kind, toLoc)) { g.scene.remove(m); g.placeIngredient(d.ing, toLoc, m.position.x - pan.position.x, m.position.z - pan.position.z); }
+          else {
+            if (toLoc) g.toast(`${ING[kind].name} is already there`);
+            const ing = d.ing; g.anim(0.35, (t) => m.scale.setScalar(Math.max(0.01, 0.75 * (1 - t))), () => { g.scene.remove(m); ing.dispose(); });
+          }
           break;
         }
         if (d.type === 'egg' && dPan < PAN.rimR + 0.8 && g.canStartEgg()) { g.scene.remove(m); g.beginCrack(d.brown); }

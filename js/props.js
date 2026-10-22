@@ -220,6 +220,154 @@ function addBlobShadow(g, mats, r) {
   s.rotation.x = -Math.PI / 2; s.position.y = 0.004; s.renderOrder = -1; s.userData.blob = true; g.add(s);
 }
 
+// ---------- Open fridge stocked with the ingredients (tap or drag an item out of it) ----------
+function labelTex(draw, w = 128, h = 128) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+const hash1 = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+export function makeFridge(mats) {
+  const g = new THREE.Group(); g.name = 'fridge';
+  const W = 2.05, H = 2.55, D = 1.2, T = 0.1;
+  const shell = new THREE.MeshPhysicalMaterial({ color: '#b3e4d2', roughness: 0.26, clearcoat: 1, clearcoatRoughness: 0.1 });
+  const liner = new THREE.MeshPhysicalMaterial({ color: '#f8fdfb', roughness: 0.5, clearcoat: 0.2 });
+  const rubber = new THREE.MeshStandardMaterial({ color: '#2b2f36', roughness: 0.7 });
+  const glass = new THREE.MeshPhysicalMaterial({ color: '#d6f1ee', roughness: 0.06, transparent: true, opacity: 0.5, clearcoat: 1, depthWrite: false });
+  const chrome = mats.chrome;
+  const rb = (w, h, d, r, m, x, y, z, parent = g, cast = true) => { const o = mesh(new RoundedBoxGeometry(w, h, d, 3, r), m, cast, true); o.position.set(x, y, z); parent.add(o); return o; };
+
+  // cabinet
+  rb(W, H, T, 0.03, liner, 0, H / 2, -D / 2 + T / 2);
+  rb(T, H, D, 0.045, shell, -W / 2 + T / 2, H / 2, 0); rb(T, H, D, 0.045, shell, W / 2 - T / 2, H / 2, 0);
+  rb(W, T, D, 0.06, shell, 0, H - T / 2, 0); rb(W, 0.16, D, 0.05, shell, 0, 0.08, 0);
+  // inner liner on the side walls (so the inside is white, not mint)
+  rb(0.02, H - 0.3, D - 0.12, 0.01, liner, -W / 2 + T + 0.01, H / 2, 0.02, g, false); rb(0.02, H - 0.3, D - 0.12, 0.01, liner, W / 2 - T - 0.01, H / 2, 0.02, g, false);
+  // vertical ribs on the back wall
+  for (let i = -3; i <= 3; i++) rb(0.025, H - 0.35, 0.03, 0.01, new THREE.MeshStandardMaterial({ color: '#e6f3ef', roughness: 0.6 }), i * 0.26, H / 2, -D / 2 + T + 0.015, g, false);
+  // chrome trim + rubber gasket round the opening
+  const trimY = (y) => rb(W, 0.045, 0.05, 0.015, chrome, 0, y, D / 2 - 0.01, g, false);
+  trimY(0.17); trimY(H - 0.02);
+  for (const x of [-W / 2 + 0.02, W / 2 - 0.02]) rb(0.045, H - 0.2, 0.05, 0.015, chrome, x, H / 2 + 0.03, D / 2 - 0.01, g, false);
+  rb(W - 0.2, 0.025, 0.03, 0.01, rubber, 0, 0.2, D / 2 - 0.05, g, false); rb(W - 0.2, 0.025, 0.03, 0.01, rubber, 0, H - 0.1, D / 2 - 0.05, g, false);
+  // glowing light bar + a warm light so the shelves are lit
+  const bar = new THREE.Mesh(new RoundedBoxGeometry(W - 0.5, 0.04, 0.09, 2, 0.015), new THREE.MeshBasicMaterial({ color: '#fffbe6' }));
+  bar.position.set(0, H - T - 0.03, 0.3); g.add(bar);
+  const lamp = new THREE.PointLight('#fff4dc', 7, 4, 2); lamp.position.set(0, H - 0.35, 0.35); g.add(lamp);
+  // thermostat dial
+  const dial = mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 20), chrome, false); dial.rotation.z = Math.PI / 2; dial.position.set(W / 2 - T - 0.03, H - 0.4, -0.2); g.add(dial);
+  const dialMark = mesh(new THREE.BoxGeometry(0.03, 0.012, 0.03), new THREE.MeshBasicMaterial({ color: '#ff6b6b' }), false); dialMark.position.set(W / 2 - T - 0.055, H - 0.4, -0.2); g.add(dialMark);
+  // glass shelves with chrome front rails
+  const shelfY = [0.62, 1.32, 2.02];
+  for (const y of shelfY) {
+    rb(W - 2 * T - 0.04, 0.03, D - 0.14, 0.012, glass, 0, y, 0.02, g, false);
+    const rail = mesh(new THREE.CylinderGeometry(0.016, 0.016, W - 2 * T - 0.04, 10), chrome, false); rail.rotation.z = Math.PI / 2; rail.position.set(0, y + 0.02, D / 2 - 0.1); g.add(rail);
+  }
+  // rubber feet
+  for (const x of [-0.8, 0.8]) { const f = mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.07, 12), rubber, false); f.position.set(x, -0.03, -0.3); g.add(f); }
+
+  // door (swung wide open to the left): outer shell, inner liner, bins with bottles
+  const pivot = new THREE.Group(); pivot.position.set(-W / 2, 0, D / 2); pivot.rotation.y = -2.85; g.add(pivot);
+  rb(W, H, 0.11, 0.05, shell, W / 2, H / 2, 0.055, pivot);
+  rb(W - 0.14, H - 0.14, 0.04, 0.03, liner, W / 2, H / 2, -0.03, pivot, false);
+  rb(W - 0.06, 0.04, 0.06, 0.015, rubber, W / 2, H - 0.06, -0.03, pivot, false); rb(W - 0.06, 0.04, 0.06, 0.015, rubber, W / 2, 0.07, -0.03, pivot, false);
+  const hbar = mesh(new THREE.CylinderGeometry(0.036, 0.036, 1.0, 14), chrome); hbar.position.set(W - 0.16, H * 0.6, 0.2); pivot.add(hbar);
+  for (const dy of [-0.4, 0.4]) { const p = mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.14, 8), chrome); p.rotation.x = Math.PI / 2; p.position.set(W - 0.16, H * 0.6 + dy, 0.13); pivot.add(p); }
+  const badgeTex = labelTex((c, w, h) => { c.fillStyle = '#dfe6ea'; c.fillRect(0, 0, w, h); c.fillStyle = '#c0392b'; c.font = 'italic bold 52px serif'; c.textAlign = 'center'; c.fillText('Eggy', w / 2, 82); });
+  const badge = mesh(new RoundedBoxGeometry(0.42, 0.14, 0.02, 2, 0.01), new THREE.MeshStandardMaterial({ map: badgeTex, metalness: 0.6, roughness: 0.3 }), false); badge.position.set(W / 2, H - 0.34, 0.12); pivot.add(badge);
+  // door bins (inner face is local -z) with a milk bottle, jam jar, sauce bottle and a pickle jar
+  const binY = [0.72, 1.32, 1.92];
+  for (const y of binY) {
+    rb(W - 0.28, 0.035, 0.2, 0.012, glass, W / 2, y, -0.16, pivot, false);
+    rb(W - 0.28, 0.12, 0.02, 0.01, glass, W / 2, y + 0.075, -0.26, pivot, false);
+  }
+  const milkTex = labelTex((c, w, h) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h); c.fillStyle = '#7ec8e3'; c.fillRect(0, 36, w, 52); c.fillStyle = '#fff'; c.font = 'bold 30px sans-serif'; c.textAlign = 'center'; c.fillText('MILK', w / 2, 72); });
+  const bottle = (x, y, r, h, color, capColor, tex) => {
+    const b = new THREE.Group();
+    b.add(mesh(new THREE.CylinderGeometry(r, r * 1.03, h, 20), tex ? new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.3, clearcoat: 0.6 }) : new THREE.MeshPhysicalMaterial({ color, roughness: 0.12, clearcoat: 1, transparent: true, opacity: 0.82 }), true, false));
+    const neck = mesh(new THREE.CylinderGeometry(r * 0.45, r * 0.8, h * 0.2, 16), tex ? new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.3 }) : new THREE.MeshPhysicalMaterial({ color, roughness: 0.12, clearcoat: 1, transparent: true, opacity: 0.82 }), true, false); neck.position.y = h * 0.6; b.add(neck);
+    const cap = mesh(new THREE.CylinderGeometry(r * 0.48, r * 0.48, h * 0.08, 16), new THREE.MeshStandardMaterial({ color: capColor, roughness: 0.4 }), true, false); cap.position.y = h * 0.74; b.add(cap);
+    b.position.set(x, y + h / 2 + 0.02, -0.16); pivot.add(b);
+  };
+  bottle(0.4, binY[2], 0.1, 0.42, '#fff', '#4aa3d9', milkTex);
+  bottle(0.75, binY[2], 0.085, 0.3, '#d8434a', '#ffd23a');
+  bottle(1.1, binY[2], 0.1, 0.34, '#f4c24a', '#5b4636');
+  bottle(1.45, binY[2], 0.09, 0.4, '#7bc96f', '#ffffff');
+  bottle(0.5, binY[1], 0.12, 0.24, '#c9507a', '#ffffff'); bottle(0.95, binY[1], 0.12, 0.24, '#e8a03c', '#8e5a2b'); bottle(1.4, binY[1], 0.12, 0.24, '#b0e06e', '#ffffff');
+
+  // ---- ingredients (each is tagged so a press on it starts that ingredient) ----
+  const items = [];
+  const add = (kind, obj, x, y, z, hitW = 0.9) => {
+    obj.position.set(x, y, z);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(hitW, 0.75, 0.8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 0.3; obj.add(hit);
+    tag(obj, 'fridgeItem', { kind }); g.add(obj); items.push(obj);
+  };
+
+  // top shelf left: cheese wedge with a wax rind and holes
+  const cheese = new THREE.Group();
+  const sector = new THREE.Shape(); sector.moveTo(0, 0); sector.absarc(0, 0, 0.44, -0.55, 0.55, false); sector.lineTo(0, 0);
+  const cg = new THREE.ExtrudeGeometry(sector, { depth: 0.26, bevelEnabled: true, bevelSize: 0.014, bevelThickness: 0.014, bevelSegments: 2, curveSegments: 18 });
+  cg.rotateX(-Math.PI / 2); cg.translate(-0.2, 0.014, 0.1);
+  const wedge = mesh(cg, [new THREE.MeshPhysicalMaterial({ color: '#ffcb3f', roughness: 0.3, clearcoat: 0.6 }), new THREE.MeshPhysicalMaterial({ color: '#f5b72e', roughness: 0.35, clearcoat: 0.5 })]);
+  cheese.add(wedge);
+  const rind = mesh(new THREE.CylinderGeometry(0.458, 0.458, 0.2, 24, 1, true, -0.55, 1.1), new THREE.MeshStandardMaterial({ color: '#e0572f', roughness: 0.6, side: THREE.DoubleSide })); rind.position.set(-0.2, 0.135, 0.1); rind.rotation.y = Math.PI; cheese.add(rind);
+  const hole = new THREE.MeshStandardMaterial({ color: '#d99a1a', roughness: 0.7 });
+  [[0.1, 0.05, 0.05], [0.2, -0.06, 0.04], [0.06, -0.08, 0.035], [0.15, 0.12, 0.03]].forEach(([x, z, r]) => { const h = mesh(new THREE.SphereGeometry(r, 10, 8), hole, false); h.position.set(x - 0.2 + 0.1, 0.268, z + 0.1); h.scale.y = 0.35; cheese.add(h); });
+  add('cheese', cheese, -0.5, shelfY[2] + 0.025, -0.05, 0.9);
+
+  // top shelf right: burlap rice sack tied at the top with a tag
+  const sack = new THREE.Group();
+  const burlap = labelTex((c, w, h) => { c.fillStyle = '#c9a56b'; c.fillRect(0, 0, w, h); for (let i = 0; i < w; i += 4) { c.fillStyle = `rgba(110,70,30,${0.12 + hash1(i) * 0.12})`; c.fillRect(i, 0, 2, h); c.fillRect(0, i, w, 2); } c.fillStyle = '#c0392b'; c.fillRect(0, 46, w, 30); c.fillStyle = '#fff'; c.font = 'bold 26px sans-serif'; c.textAlign = 'center'; c.fillText('RICE', w / 2, 69); });
+  burlap.wrapS = burlap.wrapT = THREE.RepeatWrapping;
+  const sackGeo = new THREE.LatheGeometry([[0.001, 0], [0.24, 0], [0.3, 0.06], [0.32, 0.22], [0.27, 0.42], [0.15, 0.55], [0.085, 0.62], [0.1, 0.68], [0.15, 0.78], [0.07, 0.83]].map((p) => new THREE.Vector2(p[0], p[1])), 28);
+  sack.add(mesh(sackGeo, new THREE.MeshStandardMaterial({ map: burlap, roughness: 0.95, side: THREE.DoubleSide })));
+  const tie = mesh(new THREE.TorusGeometry(0.095, 0.02, 8, 18), new THREE.MeshStandardMaterial({ color: '#7a4a24', roughness: 0.8 }), false); tie.rotation.x = Math.PI / 2; tie.position.y = 0.63; sack.add(tie);
+  const tag_ = mesh(new RoundedBoxGeometry(0.16, 0.2, 0.012, 2, 0.006), new THREE.MeshStandardMaterial({ color: '#fff7e0', roughness: 0.6 }), false); tag_.position.set(0.13, 0.58, 0.1); tag_.rotation.z = -0.3; sack.add(tag_);
+  sack.scale.setScalar(0.74);
+  add('rice', sack, 0, shelfY[0] + 0.025, 0, 0.8);
+
+  // middle shelf left: vacuum-packed bacon with a printed sleeve
+  const bacon = new THREE.Group();
+  const trayM = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4 });
+  bacon.add(rb(0.8, 0.05, 0.5, 0.02, trayM, 0, 0.03, 0, bacon));
+  const baconTex = labelTex((c, w, h) => { c.fillStyle = '#d95b5b'; c.fillRect(0, 0, w, h); for (let i = 0; i < 6; i++) { c.fillStyle = i % 2 ? '#fde9e4' : '#c94646'; c.fillRect(0, 6 + i * 20, w, 14); } });
+  const bMat = new THREE.MeshPhysicalMaterial({ map: baconTex, roughness: 0.35, clearcoat: 0.7 });
+  [[-0.17, 0], [0.04, 0.03], [0.22, -0.02]].forEach(([z, rot], i) => {
+    const sg = new THREE.BoxGeometry(0.7, 0.026, 0.15, 24, 1, 2), p = sg.attributes.position;
+    for (let k = 0; k < p.count; k++) p.setY(k, p.getY(k) + Math.sin(p.getX(k) * 9 + i * 2) * 0.014);
+    sg.computeVertexNormals();
+    const s = mesh(sg, bMat, true, false); s.position.set(0, 0.075, z); s.rotation.y = rot; bacon.add(s);
+  });
+  const film = new THREE.Mesh(new RoundedBoxGeometry(0.82, 0.12, 0.52, 3, 0.05), new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transparent: true, opacity: 0.18, clearcoat: 1, depthWrite: false })); film.position.y = 0.09; bacon.add(film);
+  const sleeveTex = labelTex((c, w, h) => { c.fillStyle = '#c0392b'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff3d6'; c.font = 'bold 42px sans-serif'; c.textAlign = 'center'; c.fillText('BACON', w / 2, 70); c.font = '30px serif'; c.fillText('🥓', w / 2, 108); });
+  const sleeve = mesh(new RoundedBoxGeometry(0.28, 0.15, 0.54, 3, 0.03), [0, 1, 2, 3, 4, 5].map((i) => new THREE.MeshStandardMaterial({ map: i === 2 ? sleeveTex : null, color: i === 2 ? '#ffffff' : '#c0392b', roughness: 0.5 })), false); sleeve.position.set(-0.08, 0.1, 0); bacon.add(sleeve);
+  add('bacon', bacon, -0.5, shelfY[1] + 0.025, 0.02, 0.9);
+
+  // middle shelf right: net-wrapped ham roast with butcher's string
+  const ham = new THREE.Group();
+  const netTex = labelTex((c, w, h) => { c.fillStyle = '#f2a0a6'; c.fillRect(0, 0, w, h); const cl = c.createRadialGradient(w * 0.4, h * 0.35, 4, w / 2, h / 2, w * 0.7); cl.addColorStop(0, 'rgba(255,255,255,0.28)'); cl.addColorStop(1, 'rgba(120,30,40,0.25)'); c.fillStyle = cl; c.fillRect(0, 0, w, h); c.strokeStyle = 'rgba(255,248,235,0.85)'; c.lineWidth = 3; for (let i = -h; i < w + h; i += 22) { c.beginPath(); c.moveTo(i, 0); c.lineTo(i + h, h); c.stroke(); c.beginPath(); c.moveTo(i + h, 0); c.lineTo(i, h); c.stroke(); } });
+  netTex.wrapS = netTex.wrapT = THREE.RepeatWrapping; netTex.repeat.set(2, 1);
+  const roast = mesh(new THREE.SphereGeometry(0.3, 40, 28), new THREE.MeshPhysicalMaterial({ map: netTex, roughness: 0.4, clearcoat: 0.5 })); roast.scale.set(1.25, 0.82, 0.9); roast.position.y = 0.25; ham.add(roast);
+  for (const x of [-0.14, 0.14]) { const s = mesh(new THREE.TorusGeometry(0.255, 0.012, 8, 30), new THREE.MeshStandardMaterial({ color: '#e9d9b6', roughness: 0.8 }), false); s.rotation.y = Math.PI / 2; s.position.set(x * 1.4, 0.25, 0); s.scale.set(1, 0.85, 0.92); ham.add(s); }
+  const cut = mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 28), new THREE.MeshStandardMaterial({ color: '#f7b9bd', roughness: 0.45 }), false); cut.rotation.z = Math.PI / 2; cut.position.set(0.37, 0.24, 0); cut.scale.set(1, 1, 0.8); ham.add(cut);
+  ham.scale.setScalar(0.78);
+  add('ham', ham, 0.5, shelfY[2] + 0.025, 0.02, 0.9);
+
+  // bottom shelf: styrofoam tray of linked sausages under cling film
+  const saus = new THREE.Group();
+  saus.add(rb(1.0, 0.07, 0.56, 0.03, trayM, 0, 0.04, 0, saus));
+  const sMat = new THREE.MeshPhysicalMaterial({ color: '#e58f7b', roughness: 0.3, clearcoat: 0.8 });
+  const sg = new THREE.CapsuleGeometry(0.075, 0.2, 8, 16).rotateZ(Math.PI / 2);
+  [-0.3, -0.1, 0.1, 0.3].forEach((x, i) => { const s = mesh(sg, sMat); s.position.set(x, 0.15, Math.sin(i * 1.3) * 0.04); s.rotation.y = Math.sin(i) * 0.12; saus.add(s); });
+  [-0.2, 0, 0.2].forEach((x) => { const r = mesh(new THREE.TorusGeometry(0.05, 0.011, 6, 12), new THREE.MeshStandardMaterial({ color: '#b86a52', roughness: 0.6 }), false); r.rotation.y = Math.PI / 2; r.position.set(x, 0.15, 0); saus.add(r); });
+  const wrap = new THREE.Mesh(new RoundedBoxGeometry(1.02, 0.18, 0.58, 3, 0.07), new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transparent: true, opacity: 0.14, clearcoat: 1, depthWrite: false })); wrap.position.y = 0.14; saus.add(wrap);
+  saus.scale.setScalar(0.85);
+  add('sausage', saus, 0.5, shelfY[1] + 0.025, 0.03, 1.0);
+
+  g.userData.items = items;
+  return g;
+}
+
 export function buildProps(scene, mats) {
   const pan = makePan(mats); pan.position.set(HOME.pan.x, 0, HOME.pan.z); scene.add(pan);
   const plate = makePlate(mats); plate.position.set(HOME.plate.x, 0, HOME.plate.z); scene.add(plate);
@@ -228,5 +376,6 @@ export function buildProps(scene, mats) {
   const salt = makeSaltShaker(mats); salt.position.set(HOME.salt.x, 0, HOME.salt.z); scene.add(salt);
   const pepper = makePepperMill(mats); pepper.position.set(HOME.pepper.x, 0, HOME.pepper.z); scene.add(pepper);
   const spatula = makeSpatula(mats); spatula.position.set(HOME.spatula.x, 0.0, HOME.spatula.z); spatula.rotation.y = 0.5; scene.add(spatula);
-  return { pan, plate, carton, butterDish, salt, pepper, spatula };
+  const fridge = makeFridge(mats); fridge.position.set(1.0, 0, -2.6); fridge.scale.setScalar(1.3); scene.add(fridge);
+  return { pan, plate, carton, butterDish, salt, pepper, spatula, fridge };
 }

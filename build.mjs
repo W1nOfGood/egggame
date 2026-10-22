@@ -1,0 +1,18 @@
+// Bundles js/ + three.js into one classic script (game.bundle.js) so index.html also works when opened
+// straight from disk (file://), where browsers block ES modules. Run after editing anything in js/:
+//   node build.mjs
+import { execSync } from 'node:child_process';
+execSync(
+  'npx --yes esbuild@0.25.0 js/main.js --bundle --format=iife --minify --target=es2020 ' +
+  '--alias:three=./vendor/three.module.js --alias:three/addons=./vendor/addons --outfile=game.bundle.js --log-level=warning',
+  { stdio: 'inherit', cwd: new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') }
+);
+// cache-bust: index.html always asks for this exact build of the CSS and bundle
+import { readFileSync, writeFileSync } from 'node:fs';
+const stampVersion = (file) => {
+  const v = Date.now().toString(36);
+  const html = readFileSync(file, 'utf8').replace(/(game\.bundle\.js|style\.css)(\?v=[\w]+)?/g, `$1?v=${v}`);
+  writeFileSync(file, html);
+};
+stampVersion(new URL('./index.html', import.meta.url));
+console.log('built game.bundle.js');

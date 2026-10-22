@@ -10,10 +10,7 @@
   <title>Crack &amp; Sizzle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css">
-  <script type="importmap">
-    { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
-  </script>
+  <link rel="stylesheet" href="style.css?v=mvjwgol0">
 </head>
 <body>
   <div id="app">
@@ -48,6 +45,7 @@
       </section>
 
       <div id="hint" class="hint"></div>
+      <div id="guide-chips"></div>
       <div id="guide-chip" class="guide-chip hidden"><span class="dot"></span><span id="guide-text">Raw</span><div class="guide-meter"><div id="guide-fill"></div></div></div>
 
       <aside id="heat-panel" class="card">
@@ -65,12 +63,21 @@
         <div id="temp-readout" class="tiny center">20°C</div>
       </aside>
 
+      <nav id="tray2" class="tray tray2" aria-label="Ingredient shelf">
+        <button class="tool" data-tool="bacon"><span class="ico">🥓</span><span>Bacon</span></button>
+        <button class="tool" data-tool="ham"><span class="ico">🍖</span><span>Ham</span></button>
+        <button class="tool" data-tool="sausage"><span class="ico">🌭</span><span>Sausage</span></button>
+        <button class="tool" data-tool="cheese"><span class="ico">🧀</span><span>Cheese</span></button>
+        <button class="tool" data-tool="rice"><span class="ico">🍚</span><span>Rice</span></button>
+      </nav>
+
       <nav id="tray" class="tray">
         <button class="tool" data-tool="butter"><span class="ico">🧈</span><span>Butter</span></button>
         <button class="tool" data-tool="egg"><span class="ico">🥚</span><span>Egg</span></button>
         <button class="tool" data-tool="spatula"><span class="ico">
           <svg viewBox="0 0 24 24"><rect x="9" y="2" width="8" height="9" rx="2" fill="#cfd8e3" stroke="#7b8796" stroke-width="1.2"/><path d="M11 4.5v4M13 4.5v4M15 4.5v4" stroke="#7b8796" stroke-width="1"/><rect x="11.6" y="10" width="2.8" height="12" rx="1.4" fill="#7fd1b9"/></svg>
         </span><span>Spatula</span></button>
+        <button id="btn-flip" class="tool flip-tool hidden" data-tool="flip" aria-label="Flip"><span class="ico">↻</span><span>Flip</span></button>
         <button class="tool" data-tool="salt"><span class="ico">🧂</span><span>Salt</span></button>
         <button class="tool" data-tool="pepper"><span class="ico pepper-ico">●</span><span>Pepper</span></button>
         <button class="tool" data-tool="toss"><span class="ico">🗑️</span><span>Toss</span></button>
@@ -89,7 +96,7 @@
     <div id="screen-title" class="screen">
       <div class="panel title-panel">
         <div class="logo"><span class="logo-egg">🍳</span><h1>Crack <i>&amp;</i> Sizzle</h1></div>
-        <p class="sub">A cozy little egg kitchen</p>
+        <p class="sub">A cozy little egg kitchen — eggs, omelettes, fried rice, bacon &amp; more</p>
         <div class="menu-buttons">
           <button id="btn-play" class="big-btn primary">Order Mode</button>
           <button id="btn-free" class="big-btn">Free Cook</button>
@@ -160,6 +167,6 @@
       </div>
     </div>
   </div>
-  <script type="module" src="js/main.js"></script>
+  <script src="game.bundle.js?v=mvjwgol0"></script>
 </body>
 </html>

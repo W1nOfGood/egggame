@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { audio } from './audio.js';
 import { RECIPE_NAMES, RECIPE_ICONS } from './config.js';
-import { levelLabel, TUTORIAL } from './scoring.js';
+import { levelLabel, TUTORIAL, sideLabel, fillLabel } from './scoring.js';
 
 const $ = (id) => document.getElementById(id);
 const STORE = 'cracksizzle.v1';
@@ -135,7 +135,7 @@ export class UI {
 
   // ---------- tray ----------
   _bindTray() {
-    document.querySelectorAll('#tray .tool').forEach((b) => {
+    document.querySelectorAll('#tray .tool, #tray2 .tool').forEach((b) => {
       const tool = b.dataset.tool;
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
@@ -170,9 +170,11 @@ export class UI {
   }
   _renderExtras() {
     const o = this.game.order; if (!o) return;
-    const f = this.game.food, chips = [];
+    const g = this.game, f = g.food || g.ings.find((i) => i.kind === 'rice') || null, chips = [];
     const chip = (txt, done, no) => `<span class="chip${done ? ' done' : ''}${no ? ' no' : ''}">${txt}</span>`;
-    chips.push(chip('🧈 Butter', this.game.butter.amount > 0));
+    chips.push(chip('🧈 Butter', g.butter.amount > 0));
+    (o.extras || []).forEach((e) => chips.push(chip(sideLabel(e), g.plateHas(e.kind))));
+    (o.fill || []).forEach((k) => chips.push(chip(fillLabel(k, o.recipe), g.plateHas(k))));
     chips.push(o.salt ? chip('🧂 Salt', f && f.salt > 0) : chip('No salt', false, true));
     chips.push(o.pepper ? chip('● Pepper', f && f.pepper > 0) : chip('No pepper', false, true));
     const html = chips.join('');
@@ -215,7 +217,7 @@ export class UI {
     const isBest = total > this.s.best;
     if (isBest) { this.s.best = total; saveSettings(this.s); }
     $('res-best').textContent = isBest ? '🏆 New best score!' : `Best: ${this.s.best} · ⭐ ${starsSum} / 15 stars`;
-    $('res-list').innerHTML = results.map(({ order, result }) => `<li><span>${order.avatar} ${RECIPE_NAMES[order.recipe]}<small>${levelLabel(order)}</small></span><b>${'⭐'.repeat(result.stars) || '—'} ${result.total}</b></li>`).join('');
+    $('res-list').innerHTML = results.map(({ order, result }) => `<li><span>${order.avatar} ${RECIPE_NAMES[order.recipe]}<small>${[levelLabel(order)].concat((order.extras || []).map(sideLabel), (order.fill || []).map((k) => fillLabel(k, order.recipe))).join(' · ')}</small></span><b>${'⭐'.repeat(result.stars) || '—'} ${result.total}</b></li>`).join('');
     this.show('results');
     audio.ding();
   }
@@ -239,8 +241,8 @@ export class UI {
       const text = h ? h.text : '';
       const el = $('hint');
       if (text !== this.lastHint) { el.textContent = text; el.classList.remove('flash'); void el.offsetWidth; if (text) el.classList.add('flash'); this.lastHint = text; }
-      document.querySelectorAll('#tray .tool').forEach((b) => b.classList.toggle('suggest', !!h && h.tool === b.dataset.tool));
-      $('btn-serve').disabled = g.foodLoc !== 'plate';
+      document.querySelectorAll('#tray .tool, #tray2 .tool').forEach((b) => b.classList.toggle('suggest', !!h && h.tool === b.dataset.tool));
+      $('btn-serve').disabled = !g.canServe();
       this._renderExtras();
     }
     // patience
@@ -251,17 +253,27 @@ export class UI {
     // thermometer
     $('thermo-fill').style.width = Math.min(100, ((g.panTemp - 20) / 230) * 100).toFixed(1) + '%';
     $('temp-readout').textContent = `${Math.round(g.panTemp)}°C pan${g.panOnBurner ? '' : ' (off burner)'}`;
-    // guide chip projected above the pan
-    const chip = $('guide-chip'), st = this.s.guide ? g.guide() : null;
-    if (!st) { chip.classList.add('hidden'); return; }
-    chip.classList.remove('hidden');
-    chip.className = 'guide-chip ' + st.cls;
-    $('guide-text').textContent = st.label;
-    $('guide-fill').style.width = (st.p * 100).toFixed(0) + '%';
-    g.props.pan.getWorldPosition(_v); _v.y += 0.9; _v.z -= 0.6;
-    _v.project(camera);
-    const x = (_v.x * 0.5 + 0.5) * window.innerWidth, y = (-_v.y * 0.5 + 0.5) * window.innerHeight;
-    chip.style.left = x.toFixed(0) + 'px'; chip.style.top = Math.max(70, y).toFixed(0) + 'px';
+    // one progress chip per item cooking in the pan, each floating above its own item
+    $('guide-chip').classList.add('hidden');
+    const list = this.s.guide ? g.guideList() : [];
+    const host = $('guide-chips'), pool = this._chips || (this._chips = []);
+    host.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden';
+    while (pool.length < list.length) { const el = document.createElement('div'); el.className = 'mini-chip'; el.style.position = 'absolute'; el.style.pointerEvents = 'none'; el.innerHTML = '<span class="tx"></span><div class="meter"><i></i></div>'; host.appendChild(el); pool.push(el); }
+    const W = window.innerWidth, Hh = window.innerHeight, placed = [];
+    list.forEach((it, i) => {
+      const el = pool[i];
+      it.obj.getWorldPosition(_v); _v.y += 0.45; _v.project(camera);
+      const x = (_v.x * 0.5 + 0.5) * W; let y = (-_v.y * 0.5 + 0.5) * Hh;
+      for (let n = 0; n < 6; n++) { if (placed.some((q) => Math.abs(q.x - x) < 96 && Math.abs(q.y - y) < 27)) y -= 28; else break; }
+      placed.push({ x, y });
+      el.style.display = '';
+      el.className = 'mini-chip ' + it.cls; el.style.transform = 'translate(-50%, -100%)';
+      el.firstChild.textContent = it.label;
+      el.lastChild.firstChild.style.width = Math.round(it.p * 100) + '%';
+      el.style.left = x.toFixed(0) + 'px'; el.style.top = Math.max(64, y).toFixed(0) + 'px';
+    });
+    for (let i = list.length; i < pool.length; i++) pool[i].style.display = 'none';
+    $('btn-flip').classList.toggle('hidden', !g.canFlip());
   }
 }
 

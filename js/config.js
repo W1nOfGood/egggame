@@ -36,6 +36,8 @@ export const DONENESS = {
   sunny: { runny: { label: 'Runny yolk', y: [0, 0.45] }, jammy: { label: 'Jammy yolk', y: [0.45, 0.75] } },
   over: { easy: { label: 'Over easy', y: [0, 0.45] }, medium: { label: 'Over medium', y: [0.45, 0.75] }, hard: { label: 'Over hard', y: [0.75, 1.01] } },
   scrambled: { soft: { label: 'Soft & creamy', w: [0.5, 0.78] }, medium: { label: 'Medium curds', w: [0.78, 0.92] }, well: { label: 'Well done', w: [0.92, 1.01] } },
+  omelette: { soft: { label: 'Soft & creamy', w: [0.5, 0.78] }, medium: { label: 'Medium', w: [0.78, 0.92] }, well: { label: 'Well done', w: [0.92, 1.01] } },
+  friedrice: { fluffy: { label: 'Fluffy', c: [0.45, 0.8] }, crispy: { label: 'Crispy & golden', c: [0.85, 1.2] } },
 };
-export const RECIPE_NAMES = { sunny: 'Sunny-side up', over: 'Over-easy (flipped)', scrambled: 'Scrambled eggs' };
-export const RECIPE_ICONS = { sunny: '🍳', over: '🥚', scrambled: '🧀' };
+export const RECIPE_NAMES = { sunny: 'Sunny-side up', over: 'Over-easy (flipped)', scrambled: 'Scrambled eggs', omelette: 'Omelette', friedrice: 'Egg fried rice', sheet: 'Flat omelette' };
+export const RECIPE_ICONS = { sunny: '🍳', over: '🥚', scrambled: '🧀', omelette: '🌙', friedrice: '🍚', sheet: '🥚' };

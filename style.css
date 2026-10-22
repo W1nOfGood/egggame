@@ -129,6 +129,9 @@ button { cursor: pointer; touch-action: manipulation; }
   background: var(--card); box-shadow: var(--shadow); border: 2px solid #fff;
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
+.tray2 { bottom: calc(114px + var(--safe-b)); padding: 6px 8px; gap: 6px; border-radius: 22px; background: rgba(255, 250, 245, .94); }
+.tray2 .tool { width: 66px; height: 62px; border-radius: 16px; font-size: 11.5px; background: #f3fbf7; }
+.tray2 .tool .ico { font-size: 26px; height: 28px; }
 .tool, .serve {
   width: 78px; height: 78px; border-radius: 20px; border: 2px solid var(--line); background: #fff;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
@@ -221,7 +224,8 @@ button { cursor: pointer; touch-action: manipulation; }
 @media (max-aspect-ratio: 1/1) {
   #heat-panel { top: auto; bottom: calc(118px + var(--safe-b)); transform: none; width: 118px; padding: 8px; }
   .dial { width: 96px; height: 96px; }
-  .hint { top: auto; bottom: calc(118px + var(--safe-b)); max-width: min(380px, 62vw); left: calc(50% - 60px); }
+  .hint { top: auto; bottom: calc(190px + var(--safe-b)); max-width: min(380px, 62vw); left: calc(50% - 60px); }
+  .tray2 { bottom: calc(104px + var(--safe-b)); }
   #tutorial-panel { top: auto; bottom: calc(300px + var(--safe-b)); }
 }
 @media (max-width: 720px) {
@@ -230,6 +234,9 @@ button { cursor: pointer; touch-action: manipulation; }
   .tool .ico, .serve .ico { font-size: 26px; height: 28px; }
   .tool .ico svg { width: 28px; height: 28px; }
   .tray { gap: 5px; padding: 6px; }
+  .tray2 { bottom: calc(90px + var(--safe-b)); }
+  .tray2 .tool { width: 54px; height: 54px; font-size: 10px; }
+  .tray2 .tool .ico { font-size: 22px; height: 24px; }
   #order-card { width: min(250px, 58vw); padding: 9px 11px; }
   .avatar { width: 42px; height: 42px; font-size: 25px; }
   .recipe { font-size: 16px; } .doneness { font-size: 13px; }
@@ -244,3 +251,27 @@ button { cursor: pointer; touch-action: manipulation; }
   .tool .ico, .serve .ico { font-size: 24px; height: 26px; }
   #heat-panel { width: 112px; } .dial { width: 88px; height: 88px; }
 }
+
+/* per-item progress chips + flip button */
+#guide-chips { position: absolute; inset: 0; pointer-events: none; }
+.mini-chip {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none;
+  display: flex; align-items: center; gap: 7px; padding: 4px 10px 4px 11px; border-radius: 999px; white-space: nowrap;
+  background: rgba(255,255,255,.95); box-shadow: var(--shadow); font-weight: 700; font-size: 12.5px; border-left: 5px solid #c9c3bd;
+}
+.mini-chip .meter { width: 38px; height: 6px; border-radius: 6px; background: #eee3da; overflow: hidden; }
+.mini-chip .meter i { display: block; height: 100%; width: 0; background: #ffc35c; transition: width .15s; }
+.mini-chip.raw { border-left-color: #c9c3bd; }
+.mini-chip.cooking { border-left-color: #ffc35c; }
+.mini-chip.ready { border-left-color: #4fd18b; } .mini-chip.ready .meter i { background: #4fd18b; }
+.mini-chip.burning { border-left-color: #ff5e5e; animation: wobble .5s infinite; } .mini-chip.burning .meter i { background: #ff5e5e; }
+.mini-chip.flip { border-left-color: #4aa3ff; background: #e8f3ff; animation: chipbounce .8s infinite; } .mini-chip.flip .meter i { background: #4aa3ff; }
+@keyframes chipbounce { 0%, 100% { transform: translate(-50%, -100%); } 50% { transform: translate(-50%, calc(-100% - 5px)); } }
+.flip-tool { background: linear-gradient(170deg, #8fcbff, #4aa3ff); color: #fff; border-color: #a9d6ff; animation: pulse 1.4s infinite; }
+.flip-tool .ico { font-size: 34px !important; font-weight: 700; }
+#tray .hidden { display: none; }
+
+/* never let the trays push the page sideways on narrow screens */
+html, body { overflow: hidden; }
+#tray, #tray2 { max-width: calc(100vw - 12px); overflow-x: auto; scrollbar-width: none; }
+#tray::-webkit-scrollbar, #tray2::-webkit-scrollbar { display: none; }
