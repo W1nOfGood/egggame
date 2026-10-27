@@ -70,10 +70,11 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 
 ## Performance (iPad)
 
-- Built to run at the highest settings on iPad: when frames drop it lowers render resolution, never effects (bloom, shadows, decor stay on).
+- Starts at full quality and **adjusts itself automatically**: if frames drop it steps down through 8 tiers, lowering resolution first, then shadow refresh rate, bloom, reflections and the lamp light; shadows go only on very weak hardware. When frames are smooth again it steps back up (a tier that failed twice isn't retried). "Sharpest detail" in Settings never drops effects, only resolution.
+- The Claude desktop app's browser pane uses Windows' software renderer (no GPU), so it runs far slower than Chrome, Safari or the iPad. Judge speed in a real browser.
 - Measures the display's refresh rate and targets **120 fps on ProMotion iPads** (60 elsewhere). Safari may hold pages at 60 fps: Settings › Apps › Safari › Advanced › Feature Flags → turn off "Prefer Page Rendering Updates near 60fps". The in-game Settings shows this tip on an iPad stuck at 60 Hz.
 - **Smoothness** setting: "Smoothest" lets resolution drop further to hold the frame rate, "Sharpest detail" keeps it at least 1.5×.
-- Open `index.html?fps` for an on-screen meter (fps · Hz · resolution · draw calls · particles).
+- Open `index.html?fps` for an on-screen meter (fps · Hz · quality tier · resolution · bloom/env).
 - Static meshes are merged per material (and colour-baked where safe) at load, and all particles draw in three batches.
 
 ## Code map

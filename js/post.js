@@ -66,6 +66,8 @@ export class Post {
     if (grade) u.grade.value.copy(grade);
     if (threshold !== undefined) this.bright.uniforms.threshold.value = threshold;
   }
+  /** MSAA on the HDR target; at high pixel ratios it is not needed and only costs bandwidth. */
+  setSamples(n) { if (this.scene.samples !== n) { this.scene.samples = n; this.scene.dispose(); } }
   setSize() {
     this.r.getDrawingBufferSize(this.size);
     const w = Math.max(1, this.size.x), h = Math.max(1, this.size.y);

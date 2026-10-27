@@ -36,7 +36,8 @@ if (!webglOK()) {
 }
 
 function boot() {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  // the canvas itself needs no MSAA: the post pass renders into its own multisampled target
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -47,7 +48,8 @@ function boot() {
   scene.background = new THREE.Color('#ffe6d5');
   scene.fog = new THREE.Fog('#ffe6d5', 32, 70);
   const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
   scene.environmentIntensity = 0.55;
 
   // ---------- lights ----------
@@ -108,23 +110,43 @@ function boot() {
   }
 
   // ---------- quality & smoothness ----------
-  // Detail stays maxed (bloom, shadows, decor); to hold the frame rate we only lower the render resolution.
+  // Automatic tiers, best first. When frames drop we step down: resolution first, then shadow refresh, bloom,
+  // reflections and the lamp light, and only on very weak hardware the shadows themselves.
   const post = new Post(renderer);
-  let usePost = true, pixelRatio = 1, prMin = 1, prMax = 2;
-  const dpr = () => window.devicePixelRatio || 1;
-  function applyQuality(mode) {
-    usePost = mode !== 'low';
-    atmos.post = usePost ? post : null; if (atmos.cur) atmos._apply();
-    prMax = mode === 'low' ? 1 : Math.min(dpr(), 2);
-    prMin = mode === 'low' ? 1 : settings.smooth === 'detail' ? Math.min(prMax, 1.5) : 1;
-    pixelRatio = mode === 'low' ? 1 : Math.min(prMax, isTouch ? 1.6 : 2);
-    pixelRatio = Math.max(prMin, pixelRatio);
-    renderer.setPixelRatio(pixelRatio);
-    const size = mode === 'low' ? 1024 : 2048;
-    if (key.shadow.mapSize.x !== size) { key.shadow.mapSize.set(size, size); if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; } }
-    renderer.shadowMap.type = mode === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
-    renderer.setSize(window.innerWidth, window.innerHeight, false);
+  const TIERS = [
+    { pr: 2, post: true, env: true, lamp: true, shadowEvery: 1 },
+    { pr: 1.5, post: true, env: true, lamp: true, shadowEvery: 1 },
+    { pr: 1.25, post: true, env: true, lamp: true, shadowEvery: 2 },
+    { pr: 1, post: true, env: true, lamp: true, shadowEvery: 2 },
+    { pr: 1, post: false, env: true, lamp: true, shadowEvery: 3 },
+    { pr: 1, post: false, env: false, lamp: false, shadowEvery: 4 },
+    { pr: 0.8, post: false, env: false, lamp: false, shadowEvery: 6 },
+    { pr: 0.65, post: false, env: false, lamp: false, shadowEvery: 0 },
+  ];
+  const dpr = () => Math.min(window.devicePixelRatio || 1, 2);
+  let tier = 0, cfg = null, usePost = true, pixelRatio = 1;
+  const tierFloor = () => (settings.quality === 'low' ? 5 : 0);
+  const tierCeil = () => (settings.smooth === 'detail' ? 3 : TIERS.length - 1);  // "Sharpest detail" never drops effects
+  const effective = (i) => { const t = TIERS[i]; return { ...t, pr: Math.min(t.pr, dpr()) }; };
+  const same = (x, y) => x && y && x.pr === y.pr && x.post === y.post && x.env === y.env && x.lamp === y.lamp && !!x.shadowEvery === !!y.shadowEvery;
+  function setTier(i) {
+    i = Math.max(tierFloor(), Math.min(tierCeil(), i));
+    const next = effective(i);
+    tier = i;
+    if (!cfg || cfg.env !== next.env) scene.environment = next.env ? envTex : null;
+    if (!cfg || !!cfg.shadowEvery !== !!next.shadowEvery) key.castShadow = !!next.shadowEvery;
+    cfg = next; usePost = next.post;
+    atmos.post = usePost ? post : null; atmos.noEnv = !next.env; atmos.noLamp = !next.lamp; if (atmos.cur) atmos._apply();
+    post.setSamples(next.pr >= 1.5 ? 0 : 4);
+    pixelRatio = next.pr; renderer.setPixelRatio(pixelRatio); renderer.setSize(window.innerWidth, window.innerHeight, false);
     fx.setViewport(window.innerHeight, camera.fov, pixelRatio);
+  }
+  function applyQuality() {
+    const size = settings.quality === 'low' ? 1024 : 2048;
+    if (key.shadow.mapSize.x !== size) { key.shadow.mapSize.set(size, size); if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; } }
+    renderer.shadowMap.type = settings.quality === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    perf.failed = {};
+    setTier(settings.quality === 'low' ? 5 : 0);
   }
   function resize() {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -132,42 +154,52 @@ function boot() {
     fx.setViewport(window.innerHeight, camera.fov, pixelRatio);
     if (!userMovedCam) resetCamera(true);
   }
+
+  // Display refresh: measured from rAF intervals at start-up (120 Hz on ProMotion iPads when Safari allows it).
+  const perf = { hz: 60, budget: 1000 / 60, samples: [], acc: 0, frames: 0, slow: 0, good: 0, last: 0, frame: 0, failed: {}, settle: 0 };
+  window.__perf = perf;
   atmos.set(settings.atmos, true); atmos.setWeather(settings.weather);
-  applyQuality(settings.quality);
+  renderer.shadowMap.autoUpdate = false;
+  applyQuality();
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 250));
   resize();
 
-  // Display refresh: measure rAF intervals for the first second (120 Hz on ProMotion iPads when Safari allows it).
-  const perf = { hz: 60, budget: 1000 / 60, samples: [], acc: 0, frames: 0, slow: 0, good: 0, last: 0, frame: 0 };
-  window.__perf = perf;
   const fpsEl = new URLSearchParams(location.search).has('fps') ? Object.assign(document.body.appendChild(document.createElement('div')), { id: 'fps-meter' }) : null;
+  function stepDown() {
+    let i = tier; const cur = effective(tier);
+    do { i++; } while (i <= tierCeil() && same(effective(i), cur));   // skip tiers that change nothing on this screen
+    if (i > tierCeil()) return;
+    perf.failed[tier] = (perf.failed[tier] || 0) + 1; setTier(i); perf.settle = 2;
+  }
+  function stepUp() {
+    let i = tier; const cur = effective(tier);
+    do { i--; } while (i >= tierFloor() && same(effective(i), cur));
+    if (i < tierFloor() || (perf.failed[i] || 0) >= 2) return;    // a tier that failed twice is not retried
+    setTier(i); perf.settle = 2;
+  }
   function trackPerf(now) {
     const dtMs = perf.last ? now - perf.last : 0; perf.last = now; perf.frame++;
-    if (!dtMs || dtMs > 250) return;
-    if (perf.samples.length < 90) {
+    if (!dtMs || dtMs > 400 || document.hidden) return;
+    if (perf.samples.length < 30) {
       perf.samples.push(dtMs);
-      if (perf.samples.length === 90) {
-        const sorted = perf.samples.slice().sort((a, b) => a - b), med = sorted[45];
-        perf.hz = med < 10.5 ? 120 : med < 14 ? 90 : 60; perf.budget = 1000 / perf.hz;
-        renderer.shadowMap.autoUpdate = perf.hz <= 60;
-      }
+      if (perf.samples.length === 30) { const med = perf.samples.slice().sort((x, y) => x - y)[15]; perf.hz = med < 10.5 ? 120 : med < 14 ? 90 : 60; perf.budget = 1000 / perf.hz; }
       return;
     }
     perf.acc += dtMs; perf.frames++;
-    if (perf.acc >= 1000) {
+    if (perf.acc >= 500) {   // judge every half second
       const avg = perf.acc / perf.frames; perf.fps = 1000 / avg; perf.acc = 0; perf.frames = 0;
-      if (settings.quality !== 'low') {
-        // dropping frames for 2 s -> step resolution down; smooth for 4 s -> creep back up
-        if (avg > perf.budget * 1.12) { perf.slow++; perf.good = 0; } else { perf.good++; perf.slow = 0; }
-        if (perf.slow >= 2 && pixelRatio > prMin) { pixelRatio = Math.max(prMin, +(pixelRatio - 0.15).toFixed(2)); perf.slow = 0; renderer.setPixelRatio(pixelRatio); renderer.setSize(window.innerWidth, window.innerHeight, false); fx.setViewport(window.innerHeight, camera.fov, pixelRatio); }
-        else if (perf.good >= 4 && pixelRatio < prMax) { pixelRatio = Math.min(prMax, +(pixelRatio + 0.1).toFixed(2)); perf.good = 0; renderer.setPixelRatio(pixelRatio); renderer.setSize(window.innerWidth, window.innerHeight, false); fx.setViewport(window.innerHeight, camera.fov, pixelRatio); }
+      if (perf.settle > 0 && avg < perf.budget * 2.5) perf.settle--; else if (perf.settle > 0) perf.settle = 0;   // ignore the hitch right after a change (shader recompiles)
+      else {
+        if (avg > perf.budget * 1.2) { perf.slow++; perf.good = 0; } else if (avg < perf.budget * 1.08) { perf.good++; perf.slow = 0; }
+        if (perf.slow >= 2 || avg > perf.budget * 2.5) { perf.slow = 0; stepDown(); }   // way too slow: don't wait
+        else if (perf.good >= 8) { perf.good = 0; stepUp(); }
       }
-      if (fpsEl) fpsEl.textContent = `${perf.fps.toFixed(0)} fps · ${perf.hz} Hz · ${pixelRatio.toFixed(2)}x · ${renderer.info.render.calls} calls · ${fx.count} fx`;
+      if (fpsEl) fpsEl.textContent = `${perf.fps.toFixed(0)} fps · ${perf.hz} Hz · tier ${tier} · ${pixelRatio.toFixed(2)}x${usePost ? ' · bloom' : ''}${cfg.env ? ' · env' : ''}`;
     }
   }
 
-  const ui = new UI({ game, interactor, settings, onResetCamera: () => resetCamera(false), onQuality: (m) => { applyQuality(m); saveSettings(settings); },
+  const ui = new UI({ game, interactor, settings, onResetCamera: () => resetCamera(false), onQuality: () => { applyQuality(); saveSettings(settings); },
     onAtmos: (a) => { atmos.set(a); saveSettings(settings); }, onWeather: (w) => { atmos.setWeather(w); saveSettings(settings); }, perf, decor,
     onEquip: (eq) => equipAll({ mats, props, decor }, eq), onPhoto: (info) => takePhoto(info) });
   equipAll({ mats, props, decor }, settings.equip);
@@ -216,13 +248,15 @@ function boot() {
     atmos.update(dt);
     decor.update(dt, camera);
     ui.update(dt, camera);
-    // at 120 Hz the sun shadow refreshes every other frame (nothing moves fast enough to notice)
-    if (!renderer.shadowMap.autoUpdate) renderer.shadowMap.needsUpdate = perf.frame % 2 === 0;
+    // the sun shadow refreshes every frame on fast devices, less often on slow ones
+    renderer.shadowMap.needsUpdate = cfg.shadowEvery > 0 && perf.frame % cfg.shadowEvery === 0;
     if (usePost) post.render(scene, camera); else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop((now) => { trackPerf(now); frame(Math.min(0.05, clock.getDelta())); });
   // debug: advance the simulation manually (e.g. when the tab is in the background)
   window.__step = (seconds, dt = 1 / 30) => { for (let t = 0; t < seconds; t += dt) frame(dt); };
+  window.__tier = (i) => { if (i !== undefined) setTier(i); return { tier, ...effective(tier) }; };
+  window.__trackPerf = trackPerf;
 
   // first-gesture audio unlock (iOS)
   const unlock = () => { audio.init(); audio.resume(); };
@@ -231,5 +265,5 @@ function boot() {
 
   $('screen-loading').classList.add('hidden');
   ui.show('title');
-  window.__game = game; window.__controls = controls; window.__ix = interactor; window.__three = { renderer, scene, camera, post, atmos, decor }; // handy for debugging
+  window.__game = game; window.__controls = controls; window.__ix = interactor; window.__three = { THREE, renderer, scene, camera, post, atmos, decor, mats }; // handy for debugging
 }

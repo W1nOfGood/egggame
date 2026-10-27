@@ -254,7 +254,7 @@ export function makeFridge(mats) {
   // glowing light bar + a warm light so the shelves are lit
   const bar = new THREE.Mesh(new RoundedBoxGeometry(W - 0.5, 0.04, 0.09, 2, 0.015), new THREE.MeshBasicMaterial({ color: '#fffbe6' }));
   bar.position.set(0, H - T - 0.03, 0.3); g.add(bar);
-  const lamp = new THREE.PointLight('#fff4dc', 7, 4, 2); lamp.position.set(0, H - 0.35, 0.35); g.add(lamp);
+  // (no real light inside: the interior is bright enough from the room, and a point light shades every pixel on screen)
   // thermostat dial
   const dial = mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 20), chrome, false); dial.rotation.z = Math.PI / 2; dial.position.set(W / 2 - T - 0.03, H - 0.4, -0.2); g.add(dial);
   const dialMark = mesh(new THREE.BoxGeometry(0.03, 0.012, 0.03), new THREE.MeshBasicMaterial({ color: '#ff6b6b' }), false); dialMark.position.set(W / 2 - T - 0.055, H - 0.4, -0.2); g.add(dialMark);

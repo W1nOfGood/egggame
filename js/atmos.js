@@ -86,10 +86,11 @@ export class Atmos {
   _apply() {
     const c = this.cur, L = this.lights, m = this.mats, s = this.scene;
     s.background.copy(c.bg); s.fog.color.copy(c.bg); s.fog.near = c.fogNear; s.fog.far = c.fogNear + 38;
-    L.hemi.color.copy(c.hemiS); L.hemi.groundColor.copy(c.hemiG); L.hemi.intensity = c.hemiI;
+    L.hemi.color.copy(c.hemiS); L.hemi.groundColor.copy(c.hemiG); L.hemi.intensity = c.hemiI * (this.noEnv ? 1.7 : 1); // without reflections the fill light makes up the brightness
     L.key.color.copy(c.keyC); L.key.intensity = c.keyI; L.fill.color.copy(c.fillC); L.fill.intensity = c.fillI;
     L.lamp.color.copy(c.lampC); L.lamp.intensity = c.lampI; L.rim.color.copy(c.rimC); L.rim.intensity = c.rimI;
     this.renderer.toneMappingExposure = c.exposure; s.environmentIntensity = c.env;
+    L.lamp.intensity = this.noLamp ? 0 : c.lampI;
     for (const k of ['wall', 'floor', 'cabinet', 'cabinetDark', 'counterEdge', 'windowFrame']) m[k].color.copy(c[k]);
     if (this.kitchen.shadeMat) this.kitchen.shadeMat.color.copy(c.shade);
     if (this.decor) { this.decor.setFairy(c.fairy); this.decor.setCandle(c.candle); }

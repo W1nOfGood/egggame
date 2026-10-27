@@ -88,7 +88,6 @@ export function buildKitchen(scene, mats, q) {
   burner.add(flamesOuter, flamesInner);
   const glow = mesh(new THREE.RingGeometry(0.35, 0.95, 48), new THREE.MeshBasicMaterial({ color: '#4d8dff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, map: mats.tex.dot }));
   glow.rotation.x = -Math.PI / 2; glow.position.y = 0.13; burner.add(glow);
-  const flameLight = new THREE.PointLight('#7ab0ff', 0, 3.5, 2); flameLight.position.y = 0.3; burner.add(flameLight);
 
   // Cast-iron grate: outer rounded square + 4 fingers + feet
   const grate = new THREE.Group(); grate.position.set(BURNER.x, 0, BURNER.z); root.add(grate);
@@ -139,7 +138,6 @@ export function buildKitchen(scene, mats, q) {
     const h = heat / 10;
     const on = heat > 0.05;
     flamesOuter.visible = flamesInner.visible = on;
-    flameLight.intensity = on ? 0.6 + h * 2.4 : 0;
     glow.material.opacity = on ? 0.15 + h * 0.35 : 0;
     if (!on) return;
     for (let i = 0; i < flameCount; i++) {
