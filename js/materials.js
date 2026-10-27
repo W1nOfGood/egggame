@@ -15,10 +15,9 @@ function canvasTex(w, h, draw, { repeat = [1, 1], srgb = true } = {}) {
 function rand(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
 // Terrazzo countertop: cream base with pastel chips.
-function terrazzo(ctx, w, h) {
+function terrazzo(ctx, w, h, base = '#fbf3ea', cols = ['#f6b8c4', '#9fd8c8', '#ffd98a', '#b9c8f0', '#e9cdb8', '#ffffff']) {
   const r = rand(7);
-  ctx.fillStyle = '#fbf3ea'; ctx.fillRect(0, 0, w, h);
-  const cols = ['#f6b8c4', '#9fd8c8', '#ffd98a', '#b9c8f0', '#e9cdb8', '#ffffff'];
+  ctx.fillStyle = base; ctx.fillRect(0, 0, w, h);
   for (let i = 0; i < 900; i++) {
     ctx.fillStyle = cols[(r() * cols.length) | 0];
     ctx.globalAlpha = 0.55 + r() * 0.45;
@@ -35,9 +34,9 @@ function terrazzo(ctx, w, h) {
 }
 
 // Glazed subway tiles for the backsplash, with a matching bump map.
-function tiles(ctx, w, h, bump) {
+function tiles(ctx, w, h, bump, tc = [214, 240, 229], grout = '#cfe9df') {
   const rows = 8, cols = 4, th = h / rows, tw = w / cols;
-  ctx.fillStyle = bump ? '#000' : '#cfe9df'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = bump ? '#000' : grout; ctx.fillRect(0, 0, w, h);
   const r = rand(3);
   for (let y = 0; y < rows; y++) {
     for (let x = -1; x < cols + 1; x++) {
@@ -49,7 +48,7 @@ function tiles(ctx, w, h, bump) {
         ctx.fillStyle = g;
       } else {
         const l = 0.94 + r() * 0.08;
-        ctx.fillStyle = `rgb(${(214 * l) | 0},${(240 * l) | 0},${(229 * l) | 0})`;
+        ctx.fillStyle = `rgb(${Math.min(255, tc[0] * l) | 0},${Math.min(255, tc[1] * l) | 0},${Math.min(255, tc[2] * l) | 0})`;
       }
       roundRect(ctx, px, py, pw, ph, 10); ctx.fill();
       if (!bump) { // glaze highlight
@@ -101,6 +100,10 @@ function brushedRadial(ctx, w, h) {
     ctx.beginPath(); ctx.arc(w / 2, h / 2, rad, 0, Math.PI * 2); ctx.stroke();
   }
 }
+
+/** Recolourable textures for the time-of-day / theme presets (see atmos.js). */
+export function makeTileTex(tc, grout) { return canvasTex(512, 512, (c, w, h) => tiles(c, w, h, false, tc, grout), { repeat: [6, 3] }); }
+export function makeTerrazzoTex(base, chips) { return canvasTex(1024, 1024, (c, w, h) => terrazzo(c, w, h, base, chips), { repeat: [3, 1.5] }); }
 
 export function createMaterials() {
   const tex = {

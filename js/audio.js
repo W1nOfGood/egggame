@@ -1,6 +1,6 @@
 // Procedural Web Audio: every sound is synthesized, so there are no asset files to load.
 let ctx = null, master, sfxBus, musicBus, noiseBuf;
-let sizzle = null, bubbleTimer = 0, musicTimer = null, musicStep = 0, musicNextTime = 0;
+let sizzle = null, bubbleTimer = 0, musicTimer = null, musicStep = 0, musicNextTime = 0, station = 0, rainBed = null;
 const vol = { music: 0.45, sfx: 0.8 };
 
 function makeNoise() {
@@ -119,6 +119,7 @@ export const audio = {
   },
   flipWhoosh() { noiseHit({ freq: 700, q: 0.7, peak: 0.35, attack: 0.08, decay: 0.2, rate: 0.6 }); },
   knob() { noiseHit({ freq: 3000, q: 8, peak: 0.12, decay: 0.015 }); },
+  purr() { for (let i = 0; i < 6; i++) noiseHit({ freq: 180, q: 2, type: 'lowpass', peak: 0.25, attack: 0.04, decay: 0.12, when: i * 0.13, rate: 0.5 }); tone({ freq: 880, type: 'sine', peak: 0.08, decay: 0.3, when: 0.1, slide: 1.3 }); },
   pop() { tone({ freq: 660, type: 'sine', peak: 0.22, decay: 0.09, slide: 1.6 }); },
   pick() { tone({ freq: 520, type: 'triangle', peak: 0.12, decay: 0.07, slide: 1.3 }); },
   ding() {
@@ -134,10 +135,42 @@ export const audio = {
     musicStep = 0; musicNextTime = ctx.currentTime + 0.1;
     musicTimer = setInterval(scheduleMusic, 60);
   },
-  stopMusic() { clearInterval(musicTimer); musicTimer = null; },
+  stopMusic() { clearInterval(musicTimer); musicTimer = null; setRain(0); },
+  /** Kitchen radio: 0 lo-fi, 1 music box, 2 rainy jazz, 3 off. Returns the station name. */
+  setStation(i) {
+    station = ((i % STATIONS.length) + STATIONS.length) % STATIONS.length;
+    if (!ctx) return STATIONS[station].name;
+    noiseHit({ freq: 3000, q: 0.5, peak: 0.12, decay: 0.25 }); // radio tuning crackle
+    setRain(STATIONS[station].rain);
+    if (STATIONS[station].off) { clearInterval(musicTimer); musicTimer = null; }
+    else if (!musicTimer) { musicStep = 0; musicNextTime = ctx.currentTime + 0.1; musicTimer = setInterval(scheduleMusic, 60); }
+    return STATIONS[station].name;
+  },
+  get station() { return station; },
+  stationName(i = station) { return STATIONS[i].name; },
+  /** soft rising chime for a perfect dish */
+  chime() { [783.99, 987.77, 1174.66, 1567.98].forEach((f, i) => { tone({ freq: f, type: 'sine', peak: 0.16, decay: 1.1, when: i * 0.07 }); tone({ freq: f * 2, type: 'sine', peak: 0.04, decay: 0.6, when: i * 0.07 + 0.01 }); }); },
+  stamp() { tone({ freq: 120, type: 'sine', peak: 0.45, decay: 0.16, slide: 0.5 }); noiseHit({ freq: 400, q: 0.8, peak: 0.25, decay: 0.07 }); },
 };
 
-const BPM = 84, STEP = 60 / BPM / 2; // eighth notes
+const STATIONS = [
+  { name: '📻 Lo-fi Kitchen', bpm: 84, wave: 'triangle', oct: 1, rain: 0, crackle: 0.5 },
+  { name: '🎀 Music Box', bpm: 96, wave: 'sine', oct: 2, rain: 0, crackle: 0 },
+  { name: '🌧️ Rainy Jazz', bpm: 70, wave: 'triangle', oct: 1, rain: 1, crackle: 0.8, swing: true },
+  { name: '🔇 Radio off', off: true, rain: 0 },
+];
+function setRain(on) {
+  if (!ctx) return;
+  if (!rainBed) {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(lp); lp.connect(g); g.connect(musicBus); src.start();
+    rainBed = g;
+  }
+  rainBed.gain.setTargetAtTime(on ? 0.22 : 0, ctx.currentTime, 0.6);
+}
+let BPM = 84, STEP = 60 / BPM / 2; // eighth notes
 const chords = [
   [261.63, 329.63, 392.0, 493.88], // Cmaj7
   [220.0, 261.63, 329.63, 392.0],  // Am7
@@ -146,8 +179,8 @@ const chords = [
 ];
 const scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
 
-function pluck(freq, t, peak) {
-  const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
+function pluck(freq, t, peak, wave = 'triangle') {
+  const o = ctx.createOscillator(); o.type = wave; o.frequency.value = freq;
   const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2;
   const g = ctx.createGain(); const g2 = ctx.createGain(); g2.gain.value = 0.3;
   o.connect(g); o2.connect(g2); g2.connect(g); g.connect(musicBus);
@@ -168,8 +201,12 @@ function pad(freqs, t, dur) {
 }
 
 function scheduleMusic() {
+  const st = STATIONS[station];
+  if (st.off) return;
+  BPM = st.bpm; STEP = 60 / BPM / 2;
   while (musicNextTime < ctx.currentTime + 0.25) {
-    const t = musicNextTime;
+    const t = musicNextTime + (st.swing && musicStep % 2 ? STEP * 0.25 : 0);
+    if (st.crackle && Math.random() < 0.18 * st.crackle) noiseHit({ freq: 5000, q: 2, peak: 0.02, decay: 0.01, when: Math.random() * STEP });
     const bar = Math.floor(musicStep / 8) % 4;
     const s = musicStep % 8;
     if (s === 0) pad(chords[bar], t, STEP * 8 + 0.4);
@@ -177,7 +214,7 @@ function scheduleMusic() {
     const pattern = (musicStep * 7 + bar * 3) % 11;
     if ((s % 2 === 0 && pattern < 6) || (s % 2 === 1 && pattern < 2)) {
       const note = scale[(musicStep * 5 + bar * 2 + (pattern % 3)) % scale.length];
-      pluck(note, t + (s % 2 ? 0.02 : 0), 0.07);
+      pluck(note * (st.oct === 2 ? 2 : 1), t + (s % 2 ? 0.02 : 0), st.oct === 2 ? 0.05 : 0.07, st.wave);
     }
     musicStep++; musicNextTime += STEP;
   }

@@ -44,6 +44,7 @@ export class Food {
   constructor(opts = {}) {
     this.group = new THREE.Group();
     this.group.name = 'food';
+    this.heart = !!opts.heart;   // cooked in the heart-shaped egg ring
     // --- simulation state ---
     this.w = 0;              // white / egg set amount 0..1
     this.y = 0;              // yolk firmness 0..1
@@ -63,6 +64,8 @@ export class Food {
     this.buttered = !!opts.buttered;
     this.stuck = false;
     this.salt = 0; this.pepper = 0;
+    this.loc = 'pan';         // pan / spatula / air / plate
+    this.eggs = 1;            // beaten / scrambled eggs can merge into one bigger dish
     this.spread = 0;         // landing spread animation 0..1
     this.radius = 0.68;
     this.seed = Math.random() * 100;
@@ -73,7 +76,7 @@ export class Food {
   // ---------- geometry ----------
   _build() {
     const s = this.seed;
-    this.R = (a) => 0.68 * (1 + 0.075 * Math.sin(3 * a + s) + 0.05 * Math.sin(5 * a + s * 1.7) + 0.03 * Math.sin(9 * a + s * 2.3));
+    this.R = this.heart ? heartRadius : (a) => 0.68 * (1 + 0.075 * Math.sin(3 * a + s) + 0.05 * Math.sin(5 * a + s * 1.7) + 0.03 * Math.sin(9 * a + s * 2.3));
     const pos = [], rn = [], ang = [], noise = [];
     // top surface rings + an extra skirt ring at the bottom edge
     pos.push(0, 0, 0); rn.push(0); ang.push(0); noise.push(Math.random());
@@ -185,6 +188,7 @@ export class Food {
     }
     let br = Math.max(0, temp - 118) / 130 * 0.034 + Math.max(0, temp - 185) / 55 * 0.06;
     if (!env.buttered) br *= 1.35;
+    br *= env.burn ?? 1;
     if (this.scrambled && stirring) br *= 0.3;
     this.brown[this.down] = clamp01(this.brown[this.down] + br * dt);
     if (!env.buttered && temp > 110 && this.w > 0.25) this.stuck = true;
@@ -214,6 +218,20 @@ export class Food {
     if (this.folded) return;
     if (this.w < 0.45) { this.torn = true; }
     this.folded = true; this.down = 1 - this.down; this.refresh(true);
+  }
+
+  /** Size the dish for how many eggs are in it. */
+  setEggs(n) { this.eggs = n; const s = 1 + 0.2 * (n - 1); this.group.scale.set(s, 1, s); }
+  /** Merge another (raw or beaten) egg into this one, e.g. when two eggs are stirred together. */
+  absorb(o) {
+    const n = this.eggs + o.eggs;
+    this.w = (this.w * this.eggs + o.w * o.eggs) / n;
+    this.y = (this.y * this.eggs + o.y * o.eggs) / n;
+    this.brown = [Math.max(this.brown[0], o.brown[0]), Math.max(this.brown[1], o.brown[1])];
+    this.salt += o.salt; this.pepper += o.pepper; this.buttered = this.buttered || o.buttered;
+    this.fills.push(...o.fills.filter((k) => !this.fills.includes(k)));
+    this.yolkBroken = true; this.stuck = this.stuck || o.stuck;
+    this.setEggs(n); this.refresh(true);
   }
 
   breakYolk() { if (!this.yolkBroken) { this.yolkBroken = true; this.refresh(true); } }
@@ -324,7 +342,7 @@ export class Food {
     this.curdMat.color.copy(tmp);
     this.curdMat.roughness = 0.25 + w * 0.5;
     this.curdMat.clearcoat = 0.6 * (1 - w);
-    const quality = Math.min(1, this.stirTotal / (3 + w * 9)); // more stirring -> fluffier, smaller curds
+    const quality = Math.min(1, this.stirTotal / (3 + w * 6)); // more stirring -> fluffier, smaller curds
     const grow = smooth(0.08, 0.65, w);
     const t = this._t = (this._t || 0) + 0.016;
     this.curds.children.forEach((m, i) => {
@@ -351,3 +369,21 @@ export class Food {
   }
 }
 Food.prototype._nTick = 0;
+
+// Heart outline as a radius per angle (tip toward the camera, +z), sampled once from the classic parametric heart.
+const HEART = (() => {
+  const N = 360, r = new Float32Array(N), pts = [];
+  for (let i = 0; i < 720; i++) {
+    const t = (i / 720) * Math.PI * 2;
+    const x = 16 * Math.sin(t) ** 3, y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t) + 3;
+    pts.push([x, -y]);
+  }
+  for (const [x, z] of pts) { const k = Math.round(((Math.atan2(z, x) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * N) % N; r[k] = Math.max(r[k], Math.hypot(x, z)); }
+  for (let i = 0; i < N; i++) if (!r[i]) r[i] = r[(i + N - 1) % N];
+  const max = Math.max(...r); for (let i = 0; i < N; i++) r[i] = (r[i] / max) * 0.8;
+  return r;
+})();
+function heartRadius(a) {
+  const N = HEART.length, f = (((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * N, i = Math.floor(f) % N;
+  return HEART[i] + (HEART[(i + 1) % N] - HEART[i]) * (f - Math.floor(f));
+}

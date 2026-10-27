@@ -2,10 +2,13 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/RoundedBoxGeometry.js';
 import { BURNER, COOKTOP, GRATE_TOP, KNOB_POS } from './config.js';
+import { mergeStatic } from './merge.js';
 
 const mesh = (geo, mat, { cast = false, receive = false } = {}) => {
   const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = receive; return m;
 };
+
+const TICK = ['#bfe3ff', '#ffc35c', '#ff8a7a'].map((c) => new THREE.MeshBasicMaterial({ color: c }));
 
 export function buildKitchen(scene, mats, q) {
   const root = new THREE.Group(); scene.add(root);
@@ -49,8 +52,9 @@ export function buildKitchen(scene, mats, q) {
   const lamp = new THREE.Group(); lamp.position.set(-0.6, 10.6, -0.8); root.add(lamp);
   const cord = mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.5, 6), mats.castIron); cord.position.y = 1.25; lamp.add(cord);
   const shadePts = []; for (let i = 0; i <= 12; i++) { const t = i / 12; shadePts.push(new THREE.Vector2(0.15 + Math.pow(t, 1.6) * 1.1, -t * 0.9)); }
-  const shade = mesh(new THREE.LatheGeometry(shadePts, 32), new THREE.MeshStandardMaterial({ color: '#ffb59a', roughness: 0.5, side: THREE.DoubleSide })); lamp.add(shade);
-  const bulb = mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshBasicMaterial({ color: '#fff4d6' })); bulb.position.y = -0.7; lamp.add(bulb);
+  const shadeMat = new THREE.MeshStandardMaterial({ color: '#ffb59a', roughness: 0.5, side: THREE.DoubleSide });
+  const shade = mesh(new THREE.LatheGeometry(shadePts, 32), shadeMat); lamp.add(shade);
+  const bulb = mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.9, 1.4) })); bulb.position.y = -0.7; lamp.add(bulb);
 
   // ---------- Shelf with jars (right wall area) ----------
   const shelf = new THREE.Group(); shelf.position.set(4.6, 4.6, -3.45); root.add(shelf);
@@ -117,12 +121,12 @@ export function buildKitchen(scene, mats, q) {
   const ticks = new THREE.Group(); ticks.position.copy(knob.position); ticks.position.y += 0.005; root.add(ticks);
   for (let i = 0; i <= 10; i++) {
     const a = (-135 + i * 27) * Math.PI / 180;
-    const t = mesh(new THREE.CircleGeometry(i % 5 === 0 ? 0.035 : 0.022, 10), new THREE.MeshBasicMaterial({ color: i > 6 ? '#ff8a7a' : i > 3 ? '#ffc35c' : '#bfe3ff' }));
+    const t = mesh(new THREE.CircleGeometry(i % 5 === 0 ? 0.035 : 0.022, 10), TICK[i > 6 ? 2 : i > 3 ? 1 : 0]);
     t.rotation.x = -Math.PI / 2; t.position.set(Math.sin(a) * 0.45, 0, -Math.cos(a) * 0.45); ticks.add(t);
   }
 
   // ---------- Decor on counter ----------
-  root.add(utensilCrock(mats, -5.9, -2.5));
+  root.add(utensilCrock(mats, -6.45, -1.15));
   root.add(bigPlant(mats, 6.4, -2.5));
   const board = mesh(new RoundedBoxGeometry(2.4, 3.0, 0.14, 4, 0.06), mats.wood, { cast: true });
   board.position.set(-3.6, 1.45, -3.45); board.rotation.x = -0.12; root.add(board);
@@ -155,7 +159,10 @@ export function buildKitchen(scene, mats, q) {
     flamesOuter.instanceMatrix.needsUpdate = flamesInner.instanceMatrix.needsUpdate = true;
   }
 
-  return { root, knob, updateFlames };
+  // theme presets recolour these at runtime, so they keep their own materials; everything else can bake its colour
+  const live = new Set([mats.wall, mats.floor, mats.cabinet, mats.cabinetDark, mats.counterEdge, mats.windowFrame, mats.tile, mats.counter, shadeMat, sky.material]);
+  mergeStatic(root, (o) => o === knob, [], (m) => !live.has(m));
+  return { root, knob, updateFlames, sky, shadeMat, pickables: [] };
 }
 
 function roundedRectPath(p, x, y, w, h, r) {

@@ -10,10 +10,16 @@ import { Game } from './game.js';
 import { Interactor } from './interact.js';
 import { UI, loadSettings, saveSettings } from './ui.js';
 import { audio } from './audio.js';
+import { Post } from './post.js';
+import { Atmos } from './atmos.js';
+import { buildDecor } from './decor.js';
+import { equipAll } from './shop.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('scene');
 const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
+// iPadOS reports itself as a Mac; a touch-capable "Mac" is an iPad
+const isIPad = /iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const settings = loadSettings();
 
 function webglOK() {
@@ -45,7 +51,7 @@ function boot() {
   scene.environmentIntensity = 0.55;
 
   // ---------- lights ----------
-  scene.add(new THREE.HemisphereLight('#fff6ec', '#f1c9b4', 0.85));
+  const hemi = new THREE.HemisphereLight('#fff6ec', '#f1c9b4', 0.85); scene.add(hemi);
   const key = new THREE.DirectionalLight('#fff0dc', 2.3);
   key.position.set(-6, 13, 8); key.castShadow = true;
   Object.assign(key.shadow.camera, { left: -9, right: 9, top: 7, bottom: -7, near: 1, far: 40 });
@@ -62,7 +68,10 @@ function boot() {
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120);
   // Our pointer handler must be registered before OrbitControls (see Interactor.onDown)
   const props = buildProps(scene, mats);
-  const fx = new FX(scene, mats.tex.dot, isTouch ? 140 : 240);
+  const fx = new FX(scene, mats.tex.dot, 700);
+  const decor = buildDecor(scene, mats, fx);
+  kitchen.pickables.push(...decor.pickables);
+  const atmos = new Atmos({ scene, renderer, lights: { hemi, key, fill: windowFill, lamp: lampLight, rim }, mats, kitchen, decor, fx });
   const game = new Game({ scene, camera, mats, props, kitchen, fx });
   const interactor = new Interactor({ canvas, camera, game, kitchen });
 
@@ -98,29 +107,96 @@ function boot() {
     camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), pos, target };
   }
 
-  // ---------- quality ----------
-  let pixelRatio = 1, perf = { acc: 0, frames: 0, t: 0 };
+  // ---------- quality & smoothness ----------
+  // Detail stays maxed (bloom, shadows, decor); to hold the frame rate we only lower the render resolution.
+  const post = new Post(renderer);
+  let usePost = true, pixelRatio = 1, prMin = 1, prMax = 2;
+  const dpr = () => window.devicePixelRatio || 1;
   function applyQuality(mode) {
-    const dpr = window.devicePixelRatio || 1;
-    pixelRatio = mode === 'high' ? Math.min(dpr, 2) : mode === 'low' ? 1 : Math.min(dpr, isTouch ? 1.6 : 2);
+    usePost = mode !== 'low';
+    atmos.post = usePost ? post : null; if (atmos.cur) atmos._apply();
+    prMax = mode === 'low' ? 1 : Math.min(dpr(), 2);
+    prMin = mode === 'low' ? 1 : settings.smooth === 'detail' ? Math.min(prMax, 1.5) : 1;
+    pixelRatio = mode === 'low' ? 1 : Math.min(prMax, isTouch ? 1.6 : 2);
+    pixelRatio = Math.max(prMin, pixelRatio);
     renderer.setPixelRatio(pixelRatio);
-    const size = mode === 'low' ? 1024 : mode === 'high' ? 2048 : isTouch ? 1536 : 2048;
+    const size = mode === 'low' ? 1024 : 2048;
     if (key.shadow.mapSize.x !== size) { key.shadow.mapSize.set(size, size); if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; } }
     renderer.shadowMap.type = mode === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     renderer.setSize(window.innerWidth, window.innerHeight, false);
+    fx.setViewport(window.innerHeight, camera.fov, pixelRatio);
   }
   function resize() {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    fx.setViewport(window.innerHeight, camera.fov, pixelRatio);
     if (!userMovedCam) resetCamera(true);
   }
+  atmos.set(settings.atmos, true); atmos.setWeather(settings.weather);
   applyQuality(settings.quality);
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 250));
   resize();
 
-  const ui = new UI({ game, interactor, settings, onResetCamera: () => resetCamera(false), onQuality: (m) => { applyQuality(m); saveSettings(settings); } });
+  // Display refresh: measure rAF intervals for the first second (120 Hz on ProMotion iPads when Safari allows it).
+  const perf = { hz: 60, budget: 1000 / 60, samples: [], acc: 0, frames: 0, slow: 0, good: 0, last: 0, frame: 0 };
+  window.__perf = perf;
+  const fpsEl = new URLSearchParams(location.search).has('fps') ? Object.assign(document.body.appendChild(document.createElement('div')), { id: 'fps-meter' }) : null;
+  function trackPerf(now) {
+    const dtMs = perf.last ? now - perf.last : 0; perf.last = now; perf.frame++;
+    if (!dtMs || dtMs > 250) return;
+    if (perf.samples.length < 90) {
+      perf.samples.push(dtMs);
+      if (perf.samples.length === 90) {
+        const sorted = perf.samples.slice().sort((a, b) => a - b), med = sorted[45];
+        perf.hz = med < 10.5 ? 120 : med < 14 ? 90 : 60; perf.budget = 1000 / perf.hz;
+        renderer.shadowMap.autoUpdate = perf.hz <= 60;
+      }
+      return;
+    }
+    perf.acc += dtMs; perf.frames++;
+    if (perf.acc >= 1000) {
+      const avg = perf.acc / perf.frames; perf.fps = 1000 / avg; perf.acc = 0; perf.frames = 0;
+      if (settings.quality !== 'low') {
+        // dropping frames for 2 s -> step resolution down; smooth for 4 s -> creep back up
+        if (avg > perf.budget * 1.12) { perf.slow++; perf.good = 0; } else { perf.good++; perf.slow = 0; }
+        if (perf.slow >= 2 && pixelRatio > prMin) { pixelRatio = Math.max(prMin, +(pixelRatio - 0.15).toFixed(2)); perf.slow = 0; renderer.setPixelRatio(pixelRatio); renderer.setSize(window.innerWidth, window.innerHeight, false); fx.setViewport(window.innerHeight, camera.fov, pixelRatio); }
+        else if (perf.good >= 4 && pixelRatio < prMax) { pixelRatio = Math.min(prMax, +(pixelRatio + 0.1).toFixed(2)); perf.good = 0; renderer.setPixelRatio(pixelRatio); renderer.setSize(window.innerWidth, window.innerHeight, false); fx.setViewport(window.innerHeight, camera.fov, pixelRatio); }
+      }
+      if (fpsEl) fpsEl.textContent = `${perf.fps.toFixed(0)} fps · ${perf.hz} Hz · ${pixelRatio.toFixed(2)}x · ${renderer.info.render.calls} calls · ${fx.count} fx`;
+    }
+  }
+
+  const ui = new UI({ game, interactor, settings, onResetCamera: () => resetCamera(false), onQuality: (m) => { applyQuality(m); saveSettings(settings); },
+    onAtmos: (a) => { atmos.set(a); saveSettings(settings); }, onWeather: (w) => { atmos.setWeather(w); saveSettings(settings); }, perf, decor,
+    onEquip: (eq) => equipAll({ mats, props, decor }, eq), onPhoto: (info) => takePhoto(info) });
+  equipAll({ mats, props, decor }, settings.equip);
+  decor.radio.onTap = () => ui.setRadio(audio.station + 1);
+  game.on('served', (d) => { const st = d && d.result ? d.result.stars : 3; setTimeout(() => decor.react(st), 700); });
   game.settings = settings;
+
+  // ---------- photo mode ----------
+  // Swing the camera in close over the plate for one frame, grab the canvas, and frame it like a little polaroid.
+  function takePhoto({ title = 'My dish', stars = 0 } = {}) {
+    const saved = { p: camera.position.clone(), q: camera.quaternion.clone() };
+    const target = props.plate.position.clone(); target.y += 0.25;
+    camera.position.copy(target).add(new THREE.Vector3().setFromSphericalCoords(4.4, 0.72, controls.getAzimuthalAngle() + 0.2));
+    camera.lookAt(target); camera.updateMatrixWorld();
+    if (usePost) post.render(scene, camera); else renderer.render(scene, camera);
+    const src = renderer.domElement, side = Math.min(src.width, src.height) * 0.9;
+    const out = document.createElement('canvas'), W = 1080, H = 1300; out.width = W; out.height = H;
+    const x = out.getContext('2d'), plum = document.documentElement.dataset.theme !== 'cream';
+    x.fillStyle = plum ? '#2a1b3d' : '#fff6ec'; x.fillRect(0, 0, W, H);
+    x.fillStyle = plum ? '#fff4e6' : '#ffffff'; x.fillRect(40, 40, W - 80, H - 80);
+    x.drawImage(src, (src.width - side) / 2, (src.height - side) / 2, side, side, 80, 80, W - 160, W - 160);
+    x.textAlign = 'center'; x.fillStyle = '#3a2758';
+    x.font = '700 64px Fredoka, ui-rounded, system-ui, sans-serif'; x.fillText(title, W / 2, W + 20);
+    x.font = '48px system-ui, sans-serif'; x.fillText(stars ? '⭐'.repeat(stars) : '🍳', W / 2, W + 90);
+    x.font = '600 30px Fredoka, ui-rounded, system-ui, sans-serif'; x.fillStyle = '#9d7fd0';
+    x.fillText(`Crack & Sizzle · ${new Date().toLocaleDateString()} · 💜`, W / 2, H - 70);
+    camera.position.copy(saved.p); camera.quaternion.copy(saved.q); camera.updateMatrixWorld();
+    return out.toDataURL('image/png');
+  }
 
   // ---------- loop ----------
   const clock = new THREE.Clock();
@@ -137,18 +213,14 @@ function boot() {
     controls.update();
     game.camAz = controls.getAzimuthalAngle();
     game.update(dt);
+    atmos.update(dt);
+    decor.update(dt, camera);
     ui.update(dt, camera);
-    renderer.render(scene, camera);
-    // adaptive resolution when the device struggles (auto mode only)
-    if (settings.quality === 'auto') {
-      perf.acc += dt; perf.frames++;
-      if (perf.acc > 3) {
-        const fps = perf.frames / perf.acc; perf.acc = 0; perf.frames = 0;
-        if (fps < 40 && pixelRatio > 1) { pixelRatio = Math.max(1, pixelRatio - 0.25); renderer.setPixelRatio(pixelRatio); renderer.setSize(window.innerWidth, window.innerHeight, false); }
-      }
-    }
+    // at 120 Hz the sun shadow refreshes every other frame (nothing moves fast enough to notice)
+    if (!renderer.shadowMap.autoUpdate) renderer.shadowMap.needsUpdate = perf.frame % 2 === 0;
+    if (usePost) post.render(scene, camera); else renderer.render(scene, camera);
   }
-  renderer.setAnimationLoop(() => frame(Math.min(0.05, clock.getDelta())));
+  renderer.setAnimationLoop((now) => { trackPerf(now); frame(Math.min(0.05, clock.getDelta())); });
   // debug: advance the simulation manually (e.g. when the tab is in the background)
   window.__step = (seconds, dt = 1 / 30) => { for (let t = 0; t < seconds; t += dt) frame(dt); };
 
@@ -159,5 +231,5 @@ function boot() {
 
   $('screen-loading').classList.add('hidden');
   ui.show('title');
-  window.__game = game; window.__controls = controls; window.__ix = interactor; // handy for debugging
+  window.__game = game; window.__controls = controls; window.__ix = interactor; window.__three = { renderer, scene, camera, post, atmos, decor }; // handy for debugging
 }

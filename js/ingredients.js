@@ -24,6 +24,8 @@ export const ING = {
   sausage: { name: 'Sausage', icon: '🌭', R: 0.55, rate: 0.55, brown: 0.9,  levels: { browned: { label: 'browned', w: [0.75, 1.05] } } },
   cheese:  { name: 'Cheese',  icon: '🧀', R: 0.42, rate: 1.0,  brown: 0.4,  levels: { melted: { label: 'melted', w: [0.7, 1.1] } } },
   rice:    { name: 'Rice',    icon: '🍚', R: 0.62, rate: 0.7,  brown: 0.7,  levels: {} },
+  bread:   { name: 'Toast',   icon: '🍞', R: 0.5,  rate: 1.1,  brown: 1.7,  levels: { toasted: { label: 'golden', w: [0.55, 0.95] } } },
+  tomato:  { name: 'Tomato',  icon: '🍅', R: 0.48, rate: 0.85, brown: 1.0,  levels: { grilled: { label: 'grilled', w: [0.5, 0.95] } } },
 };
 export const isIngredient = (k) => Object.prototype.hasOwnProperty.call(ING, k);
 
@@ -90,6 +92,8 @@ export class Ingredient {
     else if (k === 'ham') this._buildHam();
     else if (k === 'sausage') this._buildSausage();
     else if (k === 'cheese') this._buildCheese();
+    else if (k === 'bread') this._buildBread();
+    else if (k === 'tomato') this._buildTomato();
     else this._buildRice();
     flakeGeo = flakeGeo || new THREE.BoxGeometry(0.018, 0.012, 0.018);
     pepperGeo = pepperGeo || new THREE.IcosahedronGeometry(0.014, 0);
@@ -146,6 +150,40 @@ export class Ingredient {
     const g = new THREE.ShapeGeometry(wobbleShape(0.5, 40, 0.06, 1.3), 6); g.rotateX(-Math.PI / 2);
     this.pool = new THREE.Mesh(g, this.poolMat); this.pool.position.y = 0.012; this.pool.scale.setScalar(0.4); this.pool.receiveShadow = true; this.inner.add(this.pool);
   }
+  _buildBread() {
+    this._tex(128, 128);
+    // crumb pores, drawn once and laid over the toast colour each refresh
+    const pc = document.createElement('canvas'); pc.width = pc.height = 128; const p = pc.getContext('2d');
+    for (let i = 0; i < 420; i++) { p.fillStyle = `rgba(150,110,60,${0.12 + hash(i) * 0.22})`; p.beginPath(); p.ellipse(hash(i + 1) * 128, hash(i + 2) * 128, 1 + hash(i + 3) * 2.6, 0.8 + hash(i + 4) * 1.8, hash(i + 5) * 3, 0, 6.3); p.fill(); }
+    this.poreCanvas = pc;
+    // classic loaf-slice outline: square bottom, domed top
+    const sh = new THREE.Shape();
+    sh.moveTo(-0.32, -0.3); sh.lineTo(0.32, -0.3); sh.lineTo(0.32, 0.12);
+    sh.bezierCurveTo(0.34, 0.3, 0.2, 0.34, 0.1, 0.3); sh.bezierCurveTo(0.03, 0.36, -0.03, 0.36, -0.1, 0.3);
+    sh.bezierCurveTo(-0.2, 0.34, -0.34, 0.3, -0.32, 0.12); sh.lineTo(-0.32, -0.3);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.07, bevelEnabled: true, bevelSize: 0.018, bevelThickness: 0.018, bevelSegments: 3, curveSegments: 14 });
+    const pos = g.attributes.position, uv = g.attributes.uv;
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + 0.36) / 0.72, (pos.getY(i) + 0.34) / 0.72);
+    g.rotateX(-Math.PI / 2); g.translate(0, 0.02, 0);
+    this.mat = new THREE.MeshPhysicalMaterial({ map: this.tex, roughness: 0.75, sheen: 0.4, sheenColor: C('#fff1d0') });
+    this.crustMat = new THREE.MeshPhysicalMaterial({ color: '#c88a46', roughness: 0.7 });
+    const m = new THREE.Mesh(g, [this.mat, this.crustMat]); m.castShadow = true; m.receiveShadow = true; this.inner.add(m);
+  }
+  _buildTomato() {
+    this._tex(128, 128);
+    this.skinMat = new THREE.MeshPhysicalMaterial({ color: '#e63b2e', roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.12 });
+    this.mat = new THREE.MeshPhysicalMaterial({ map: this.tex, roughness: 0.35, clearcoat: 0.6 });
+    this.halves = [];
+    const dome = new THREE.SphereGeometry(0.2, 28, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2); // lower half: skin
+    const face = new THREE.CircleGeometry(0.2, 28); face.rotateX(-Math.PI / 2);
+    [[-0.2, 0.06], [0.21, -0.07]].forEach(([x, z]) => {
+      const h = new THREE.Group(); h.position.set(x, 0, z);
+      const d = new THREE.Mesh(dome, this.skinMat); d.scale.set(1, 0.8, 1); d.position.y = 0.17; d.castShadow = true; h.add(d);
+      const f = new THREE.Mesh(face, this.mat); f.position.y = 0.171; f.receiveShadow = true; h.add(f);
+      this.inner.add(h); this.halves.push(h);
+    });
+    this.top = 1; // starts cut-side down so the face caramelises first
+  }
   _buildRice() {
     grainGeo = grainGeo || new THREE.CapsuleGeometry(0.022, 0.085, 3, 6).rotateZ(Math.PI / 2);
     bitGeo = bitGeo || new THREE.IcosahedronGeometry(0.06, 0);
@@ -176,6 +214,7 @@ export class Ingredient {
     const r = Math.max(0, temp - 65) / 70 * 0.05 * this.spec.rate;
     let br = (Math.max(0, temp - 118) / 130 * 0.034 + Math.max(0, temp - 185) / 55 * 0.06) * this.spec.brown;
     if (env.buttered || this.kind === 'bacon' || this.kind === 'sausage') br *= 0.7; // fat keeps it from catching
+    br *= env.burn ?? 1;
     if (this.kind === 'cheese') {
       this.melt = Math.min(1.3, this.melt + Math.max(0, temp - 55) / 70 * 0.06 * dt);
       this.brown[0] = clamp01(this.brown[0] + br * 0.4 * dt);
@@ -218,6 +257,8 @@ export class Ingredient {
     else if (k === 'ham') this._refreshHam(ck, br);
     else if (k === 'sausage') this._refreshSausage();
     else if (k === 'cheese') this._refreshCheese();
+    else if (k === 'bread') this._refreshBread(ck, br);
+    else if (k === 'tomato') this._refreshTomato();
     else this._refreshRice();
   }
   _refreshBacon(ck, br) {
@@ -312,11 +353,47 @@ export class Ingredient {
     if (this.grains.instanceColor) this.grains.instanceColor.needsUpdate = true;
   }
 
+  _refreshBread(ck, br) {
+    const c = this.ctx;
+    c.fillStyle = css(C('#fbefd2').lerp(C('#efcf8e'), ck)); c.fillRect(0, 0, 128, 128);
+    c.globalAlpha = 0.9; c.drawImage(this.poreCanvas, 0, 0); c.globalAlpha = 1;
+    if (br > 0.02) {   // toast colour spreads in from the middle, a little uneven
+      const g = c.createRadialGradient(64, 60, 6, 64, 64, 80);
+      const stop = (v) => { brownRamp(v, tmp); return `rgba(${(tmp.r * 255) | 0},${(tmp.g * 255) | 0},${(tmp.b * 255) | 0},${clamp01(v / 0.4) * 0.92})`; };
+      g.addColorStop(0, stop(br * 1.05)); g.addColorStop(0.7, stop(br * 0.95)); g.addColorStop(1, stop(br * 0.8));
+      c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+    }
+    this.tex.needsUpdate = true;
+    this.crustMat.color.set('#c88a46').lerp(BROWN, clamp01(this.maxBrown * 0.8)).lerp(BLACK, clamp01((this.maxBrown - 0.75) * 2));
+  }
+  _refreshTomato() {
+    const c = this.ctx, faceB = this.brown[0], skinB = this.brown[1], ck = clamp01(this.c[0]);
+    c.fillStyle = css(C('#ef4a3a').lerp(C('#c9372a'), ck)); c.fillRect(0, 0, 128, 128);
+    // pale core + seed chambers
+    c.fillStyle = 'rgba(255,190,170,0.55)'; c.beginPath(); c.arc(64, 64, 16, 0, 6.3); c.fill();
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2 + 0.4, x = 64 + Math.cos(a) * 34, y = 64 + Math.sin(a) * 34;
+      c.fillStyle = 'rgba(255,120,90,0.7)'; c.beginPath(); c.ellipse(x, y, 17, 11, a, 0, 6.3); c.fill();
+      c.fillStyle = 'rgba(255,236,170,0.9)';
+      for (let k = 0; k < 5; k++) { c.beginPath(); c.ellipse(x + Math.cos(a + k) * 7, y + Math.sin(a + k) * 5, 2.4, 1.5, a, 0, 6.3); c.fill(); }
+    }
+    if (faceB > 0.02) {   // caramelised cut face
+      const g = c.createRadialGradient(64, 64, 10, 64, 64, 66);
+      g.addColorStop(0, `rgba(120,50,20,${clamp01(faceB * 1.1) * 0.6})`); g.addColorStop(1, `rgba(60,25,10,${clamp01(faceB * 1.4) * 0.9})`);
+      c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+    }
+    this.tex.needsUpdate = true;
+    this.skinMat.color.set('#e63b2e').lerp(tmp.set('#b5281c'), clamp01(skinB * 1.3)).lerp(BLACK, clamp01((skinB - 0.6) * 1.5));
+    this.skinMat.roughness = 0.22 + skinB * 0.4;
+    // the halves really turn over: side 0 = cut face up
+    const up = this.top === 0;
+    this.halves.forEach((h) => { h.rotation.x = up ? 0 : Math.PI; h.position.y = up ? 0 : 0.34; });
+  }
   dispose() {
     if (this.group.parent) this.group.parent.remove(this.group);
     const shared = [flakeGeo, pepperGeo, grainGeo, bitGeo, peaGeo, carrotGeo];
     this.group.traverse((o) => { if (o.isMesh && o.geometry && !shared.includes(o.geometry)) o.geometry.dispose(); });
-    [this.mat, this.riceMat, this.bitMat, this.peaMat, this.carMat, this.rimMat, this.poolMat, this.saltFlecks.material, this.pepperFlecks.material].forEach((m) => m && m.dispose());
+    [this.mat, this.crustMat, this.skinMat, this.riceMat, this.bitMat, this.peaMat, this.carMat, this.rimMat, this.poolMat, this.saltFlecks.material, this.pepperFlecks.material].forEach((m) => m && m.dispose());
     this.tex && this.tex.dispose();
   }
 }

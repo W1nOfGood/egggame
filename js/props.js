@@ -1,4 +1,5 @@
 // Interactive props: pan, plate, egg carton, butter dish, shakers, spatula, whole eggs, shell halves.
+import { mergeStatic } from './merge.js';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/RoundedBoxGeometry.js';
 import { PAN, PLATE, HOME } from './config.js';
@@ -324,7 +325,7 @@ export function makeFridge(mats) {
   const tie = mesh(new THREE.TorusGeometry(0.095, 0.02, 8, 18), new THREE.MeshStandardMaterial({ color: '#7a4a24', roughness: 0.8 }), false); tie.rotation.x = Math.PI / 2; tie.position.y = 0.63; sack.add(tie);
   const tag_ = mesh(new RoundedBoxGeometry(0.16, 0.2, 0.012, 2, 0.006), new THREE.MeshStandardMaterial({ color: '#fff7e0', roughness: 0.6 }), false); tag_.position.set(0.13, 0.58, 0.1); tag_.rotation.z = -0.3; sack.add(tag_);
   sack.scale.setScalar(0.74);
-  add('rice', sack, 0, shelfY[0] + 0.025, 0, 0.8);
+  add('rice', sack, -0.58, shelfY[0] + 0.025, 0, 0.7);
 
   // middle shelf left: vacuum-packed bacon with a printed sleeve
   const bacon = new THREE.Group();
@@ -364,6 +365,24 @@ export function makeFridge(mats) {
   saus.scale.setScalar(0.85);
   add('sausage', saus, 0.5, shelfY[1] + 0.025, 0.03, 1.0);
 
+  // bottom shelf: a crusty loaf (toast) and vine tomatoes
+  const loaf = new THREE.Group();
+  const crust = new THREE.MeshPhysicalMaterial({ color: '#c98a45', roughness: 0.6, clearcoat: 0.3 });
+  const body = mesh(new RoundedBoxGeometry(0.5, 0.22, 0.34, 4, 0.08), crust); body.position.y = 0.11; loaf.add(body);
+  const dome = mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.5, 24, 1, false, 0, Math.PI), crust); dome.rotation.z = Math.PI / 2; dome.rotation.y = Math.PI / 2; dome.position.y = 0.2; dome.scale.set(1, 1, 0.9); loaf.add(dome);
+  for (const x of [-0.12, 0, 0.12]) { const cut = mesh(new THREE.BoxGeometry(0.03, 0.02, 0.3), new THREE.MeshStandardMaterial({ color: '#e7b87a', roughness: 0.7 }), false); cut.position.set(x, 0.36, 0); cut.rotation.z = 0.5; loaf.add(cut); }
+  const crumbFace = mesh(new RoundedBoxGeometry(0.06, 0.34, 0.3, 2, 0.03), new THREE.MeshStandardMaterial({ color: '#fbeccd', roughness: 0.85 }), false); crumbFace.position.set(0.25, 0.18, 0); loaf.add(crumbFace);
+  add('bread', loaf, 0.06, shelfY[0] + 0.025, 0, 0.7);
+  const vine = new THREE.Group();
+  const tomM = new THREE.MeshPhysicalMaterial({ color: '#e63b2e', roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 });
+  const green = new THREE.MeshStandardMaterial({ color: '#3f8f3a', roughness: 0.6 });
+  [[-0.13, 0.03, 0.15], [0.12, -0.04, 0.14], [0.0, 0.1, 0.12]].forEach(([x, z, r]) => {
+    const t = mesh(new THREE.SphereGeometry(r, 24, 18), tomM); t.scale.y = 0.85; t.position.set(x, r * 0.85, z); vine.add(t);
+    const cal = mesh(new THREE.ConeGeometry(r * 0.45, 0.03, 5), green, false); cal.position.set(x, r * 1.7, z); vine.add(cal);
+  });
+  const stem = mesh(new THREE.TorusGeometry(0.16, 0.012, 6, 20, Math.PI), green, false); stem.position.set(0, 0.3, 0.04); vine.add(stem);
+  add('tomato', vine, 0.62, shelfY[0] + 0.025, 0, 0.6);
+
   g.userData.items = items;
   return g;
 }
@@ -377,5 +396,19 @@ export function buildProps(scene, mats) {
   const pepper = makePepperMill(mats); pepper.position.set(HOME.pepper.x, 0, HOME.pepper.z); scene.add(pepper);
   const spatula = makeSpatula(mats); spatula.position.set(HOME.spatula.x, 0.0, HOME.spatula.z); spatula.rotation.y = 0.5; scene.add(spatula);
   const fridge = makeFridge(mats); fridge.position.set(1.0, 0, -2.6); fridge.scale.setScalar(1.3); scene.add(fridge);
+  const any = () => true;
+  mergeStatic(fridge, (o) => o.userData.interact === 'fridgeItem', ['fridge'], any);
+  // each fridge item becomes one mesh per material, still tagged so it can be tapped
+  const fridgeItems = [];
+  fridge.traverse((o) => { if (o.userData.interact === 'fridgeItem' && o.parent && o.parent.userData.interact !== 'fridgeItem' && (!o.isMesh || o.children.length)) fridgeItems.push(o); });
+  for (const o of fridgeItems) {
+    let host = o;
+    if (o.isMesh) { host = new THREE.Group(); host.userData = { ...o.userData }; o.parent.add(host); host.position.copy(o.position); host.quaternion.copy(o.quaternion); host.scale.copy(o.scale); host.attach(o); }
+    mergeStatic(host, () => false, ['fridgeItem'], any);
+  }
+  // the shakers, carton and butter dish move as whole groups, so their own parts can be baked together
+  for (const [o, tags] of [[carton, ['carton']], [butterDish, ['butterDish']], [salt, ['salt']], [pepper, ['pepper']]]) {
+    mergeStatic(o, (c) => c.userData.interact === 'cartonEgg' || c.userData.interact === 'butterBlock', tags, any);
+  }
   return { pan, plate, carton, butterDish, salt, pepper, spatula, fridge };
 }

@@ -35,7 +35,7 @@ export class Interactor {
   pick(e) {
     this.setRay(e);
     const p = this.props;
-    const list = [p.pan, p.plate, p.carton, p.butterDish, p.salt, p.pepper, p.spatula, p.fridge, this.kitchen.knob];
+    const list = [p.pan, p.plate, p.carton, p.butterDish, p.salt, p.pepper, p.spatula, p.fridge, this.kitchen.knob, ...(this.kitchen.pickables || [])];
     if (this.game.crack) list.unshift(this.game.crack.group);
     const hits = this.ray.intersectObjects(list, true);
     for (const h of hits) {
@@ -78,20 +78,16 @@ export class Interactor {
     const d = { id: e.pointerId, kind: hit.kind, x0: e.clientX, y0: e.clientY, moved: false, t0: performance.now(), last: performance.now() };
     switch (hit.kind) {
       case 'fridgeItem': this.trayDown(hit.object.userData.kind, e); return; // tap = drops into the pan, drag = carry it
+      case 'pet': { let o = hit.object; while (o && !o.userData.onTap) o = o.parent; if (o) o.userData.onTap(); return; }
       case 'knob': d.heat0 = g.heat; break;
       case 'crackEgg':
         if (g.crack.stage === 'hover') g.crackTap();
         d.sep0 = g.crack.sep; d.lastSep = g.crack.sep; break;
       case 'panFloor': {
-        const f = g.food;
         let mode = 'stir';
-        if (f && g.foodLoc === 'pan' && f.landed) {
-          f.group.getWorldPosition(_v);
-          const near = Math.hypot(hit.point.x - _v.x, hit.point.z - _v.z) < (f.scrambled ? 0.55 : 0.75);
-          if (near && !f.scrambled) mode = 'lift';
-        }
-        // pressing on bacon / ham / sausage / cheese lifts it; pressing on rice tosses it
-        const lp = g.panAnchor.worldToLocal(hit.point.clone()), ni = g._ingNear(lp.x, lp.z);
+        // pressing on an egg lifts that egg; pressing on bacon / ham / sausage / toast / tomato lifts it; rice is tossed
+        const lp = g.panAnchor.worldToLocal(hit.point.clone()), nf = g._foodNear(lp.x, lp.z, 0.75), ni = g._ingNear(lp.x, lp.z);
+        if (nf && !nf.f.scrambled) mode = 'lift';
         if (ni && ni.ing.kind !== 'rice') mode = 'lift';
         return this.beginSpatula(e, mode, d);
       }
@@ -277,7 +273,7 @@ export class Interactor {
       case 'spatula': {
         const v = this.velocity();
         const flick = v.y < -650 && Math.abs(v.y) > 1.2 * Math.abs(v.x);
-        if (g.foodLoc === 'spatula' && flick) g.flipFood(-v.y); // flick-release flip
+        if (g.carryFood && flick) g.flipFood(g.carryFood, -v.y); // flick-release flip
         else if (g.carry && flick) g.flipIng(-v.y);
         g.spatulaRelease(); break;
       }
