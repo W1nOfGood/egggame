@@ -10,7 +10,7 @@
   <title>Crack &amp; Sizzle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=mvy2qilg">
+  <link rel="stylesheet" href="style.css?v=mvy4ujk0">
 </head>
 <body>
   <div id="app">
@@ -89,6 +89,7 @@
         <button class="tool" data-tool="salt"><span class="ico">🧂</span><span>Salt</span></button>
         <button class="tool" data-tool="pepper"><span class="ico pepper-ico">●</span><span>Pepper</span></button>
         <button class="tool" data-tool="decorate"><span class="ico">🎨</span><span>Decorate</span></button>
+        <button class="tool" data-tool="drinks"><span class="ico">🍹</span><span>Drinks</span></button>
         <button class="tool" data-tool="toss"><span class="ico">🗑️</span><span>Toss</span></button>
         <button id="btn-serve" class="serve" disabled><span class="ico">🛎️</span><span>Serve</span></button>
       </nav>
@@ -98,6 +99,16 @@
         <div class="art-row"><span class="art-label">Toppings</span><div id="art-tops" class="art-opts"></div></div>
         <div class="art-row"><span class="art-label">Shapes</span><div id="art-stamps" class="art-opts"></div></div>
         <div class="art-actions"><button id="art-undo" class="art-act">↩ Undo</button><button id="art-clear" class="art-act">Clear</button><button id="art-done" class="art-act done">Done ✓</button></div>
+      </div>
+
+      <div id="drink-panel" class="card hidden">
+        <div class="dk-head"><div id="dk-goal" class="dk-goal"></div><button id="dk-menu" class="art-act">📜 Menu</button></div>
+        <div class="dk-bars"><div class="dk-bar"><div id="dk-now" class="dk-fill"></div><span class="dk-zone"></span></div><div id="dk-target" class="dk-fill dk-want hidden"></div></div>
+        <div id="dk-status" class="dk-status"></div>
+        <div class="art-row"><span class="art-label">Pour</span><div id="dk-liquids" class="art-opts wrap"></div></div>
+        <div class="art-row"><span class="art-label">Extras</span><div id="dk-extras" class="art-opts wrap"></div></div>
+        <div class="art-row"><span class="art-label">Cup</span><div id="dk-cups" class="art-opts wrap"></div></div>
+        <div class="art-actions"><button id="dk-dump" class="art-act">🗑️ Dump</button><button id="dk-stir" class="art-act">🥄 Stir</button><button id="dk-done" class="art-act done">Done ✓</button></div>
       </div>
 
       <div id="tutorial-panel" class="card hidden">
@@ -121,7 +132,10 @@
             <button id="btn-cozy" class="big-btn">🌙 Cozy Mode</button>
             <button id="btn-free" class="big-btn">Free Cook</button>
           </div>
-          <button id="btn-recipes" class="big-btn book-cta">📖 Recipe Book</button>
+          <div class="btn-pair">
+            <button id="btn-recipes" class="big-btn book-cta">📖 Recipes</button>
+            <button id="btn-drinks" class="big-btn book-cta">🍹 Drinks</button>
+          </div>
           <div class="btn-pair">
             <button id="btn-shop" class="big-btn shop-cta">🛍️ Shop <small id="coin-title"></small></button>
             <button id="btn-regulars" class="big-btn soft">💌 Regulars <small id="notes-new" class="new-badge hidden"></small></button>
@@ -210,6 +224,15 @@
       </div>
     </div>
 
+    <div id="screen-drinks" class="screen dim hidden">
+      <div class="panel wide-panel">
+        <header class="wide-head"><h2>🍹 Drink Menu</h2><span id="drinks-count" class="tiny"></span><button id="drinks-close" class="book-close" aria-label="Close">✕</button></header>
+        <nav id="drinks-tabs" class="book-tabs"></nav>
+        <article id="drinks-detail" class="drinks-detail"></article>
+        <div id="drinks-grid" class="drinks-grid"></div>
+      </div>
+    </div>
+
     <div id="screen-letter" class="screen dim hidden">
       <div class="letter" role="dialog" aria-label="Love note">
         <div class="letter-seal">🌹</div>
@@ -272,6 +295,6 @@
       </div>
     </div>
   </div>
-  <script src="game.bundle.js?v=mvy2qilg"></script>
+  <script src="game.bundle.js?v=mvy4ujk0"></script>
 </body>
 </html>

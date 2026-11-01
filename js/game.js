@@ -7,6 +7,8 @@ import { Food } from './food.js';
 import { makeShellHalves, makeButterPat } from './props.js';
 import { Ingredient, ING, STACKS } from './ingredients.js';
 import { PlateArt, makeJug, artLabel } from './art.js';
+import { DrinkCup } from './drinks.js';
+import { CUPS, drinkById } from './drinklist.js';
 import * as S from './scoring.js';
 import { audio } from './audio.js';
 
@@ -35,6 +37,7 @@ export class Game {
     this._buildButterPool();
     this.art = new PlateArt(this); this.decorating = false;
     this.pour = null;
+    this.drinking = false; this.drinkGoal = null; this.drink = new DrinkCup(this);
   }
   on(e, f) { (this.listeners[e] ||= []).push(f); }
   emit(e, d) { (this.listeners[e] || []).forEach((f) => f(d)); }
@@ -71,7 +74,7 @@ export class Game {
   start(mode) {
     // Cozy Mode is an order round with no clock and gentler browning
     this.cozy = mode === 'cozy'; if (this.cozy) mode = 'orders';
-    this.mode = mode; this.paused = false; this.freeGoal = null;
+    this.mode = mode; this.paused = false; this.freeGoal = null; this.drinkGoal = null;
     this.resetKitchen();
     this.results = []; this.roundScore = 0; this.servedCount = 0; this.tutStep = 0;
     if (mode === 'orders') { this.orders = S.makeRound(this.settings && this.settings.hearts); this.setOrder(0); }
@@ -82,6 +85,7 @@ export class Game {
   setOrder(i) { this.orderIdx = i; this.order = this.orders[i]; this.orderTime = 0; this.emit('order', this.order); }
   resetKitchen() {
     this.endDecorate(); this.endPour(); this.art.clear();
+    this.endDrink(); this.drink.clear();
     this.clearFood(true); this.clearButter(); this.clearIngs(true);
     this.setHeat(0, true); this.panTemp = ROOM_TEMP;
     this.fx.clear();
@@ -624,6 +628,27 @@ export class Game {
     this.emit('decorate', false); this.emit('changed');
   }
 
+  // ---------------- drinks ----------------
+  beginDrink() {
+    if (this.busy || this.drinking || this.decorating || this.servedLock) return;
+    this.drinking = true; this.drink.group.visible = true;
+    const want = drinkById((this.order && this.order.drink) || this.drinkGoal);
+    if (want && !this.drink.ready) this.drink.setCup(want.cup);
+    this.emit('drink', true); this.emit('changed');
+  }
+  endDrink() {
+    if (!this.drinking) return;
+    this.drink.stopPour();
+    this.drinking = false; this.drink.group.visible = this.drink.ready;
+    this.emit('drink', false); this.emit('changed');
+  }
+  /** Aim for a recipe from the Drink Menu: starts a fresh cup. */
+  setDrinkGoal(id) {
+    if (!drinkById(id)) return;
+    this.drinkGoal = id; this.drink.clear();
+    if (CUPS[drinkById(id).cup]) this.drink.setCup(drinkById(id).cup);
+  }
+
   // ---------------- flip button & per-item progress ----------------
   _flipCandidates() {
     const out = [], R = this.target().recipe;
@@ -676,8 +701,8 @@ export class Game {
   platedIngs() { return this.ings.filter((i) => i.loc === 'plate'); }
   plateHas(k) { return this.platedIngs().some((i) => i.kind === k) || this.foodsAt('plate').some((f) => f.fills.includes(k)); }
   canServe() {
-    if (this.busy || this.crack || this.carry || this.carryFood || this.servedLock || this.decorating) return false;
-    return this.foodsAt('plate').length > 0 || this.platedIngs().length > 0;
+    if (this.busy || this.crack || this.carry || this.carryFood || this.servedLock || this.decorating || this.drinking) return false;
+    return this.foodsAt('plate').length > 0 || this.platedIngs().length > 0 || (this.mode === 'free' && !this.freeGoal && this.drink.ready);
   }
 
   liftFood(f) {
@@ -844,7 +869,7 @@ export class Game {
   }
   serve() {
     if (!this.canServe()) return;
-    const foods = this.foodsAt('plate'), ings = this.platedIngs(), art = this.art.used;
+    const foods = this.foodsAt('plate'), ings = this.platedIngs(), art = this.art.used, drink = this.drink.result((this.order && this.order.drink) || this.drinkGoal);
     this.servedLock = true; // locks the dish so it can only be scored once
     this.servedCount++;
     audio.ding();
@@ -852,17 +877,17 @@ export class Game {
     this.fx.emit('sparkle', _v.setY(_v.y + 0.3), { count: 16, spread: 1 });
     const plate = this.props.plate, y0 = plate.position.y;
     this.anim(0.5, (t) => { plate.position.y = y0 + Math.sin(Math.PI * t) * 0.35; plate.rotation.y = Math.sin(Math.PI * t) * 0.3; }, () => { plate.position.y = y0; plate.rotation.y = 0; });
-    if (this.mode === 'free' && !this.freeGoal) { this.emit('served', { free: true, text: S.describe(foods, ings), food: foods[0] }); return; }
-    if (this.mode === 'free') { const result = S.evaluate(foods, this.freeGoal, { ings, art }); this.emit('served', { result, order: this.freeGoal, quote: S.describe(foods, ings), food: foods[0] }); return; }
+    if (this.mode === 'free' && !this.freeGoal) { this.emit('served', { free: true, text: foods.length || ings.length ? S.describe(foods, ings) : '', food: foods[0], drink }); return; }
+    if (this.mode === 'free') { const result = S.evaluate(foods, this.freeGoal, { ings, art }); this.emit('served', { result, order: this.freeGoal, quote: S.describe(foods, ings), food: foods[0], drink }); return; }
     const late = this.mode === 'orders' && !this.cozy && this.orderTime > this.order.patience;
     const result = S.evaluate(foods, this.order, { late, ings, art });
     this.results.push({ order: this.order, result });
     this.roundScore += result.total;
-    this.emit('served', { result, order: this.order, quote: this.order.custId ? reaction(regularById(this.order.custId), result.stars) : S.quoteFor(result.stars), food: foods[0] });
+    this.emit('served', { result, order: this.order, quote: this.order.custId ? reaction(regularById(this.order.custId), result.stars) : S.quoteFor(result.stars), food: foods[0], drink });
   }
   /** Called when the dish panel closes. */
   afterServe() {
-    this.art.clear();
+    this.art.clear(); this.drink.clear();
     this.clearFood(false); this.clearButter(); this.clearIngs(false);
     if (this.mode === 'orders') {
       if (this.orderIdx + 1 >= this.orders.length) { this.emit('roundOver', { total: this.roundScore, results: this.results }); this.mode = 'results'; }
@@ -896,6 +921,13 @@ export class Game {
     return want.filter((k) => !this.plateHas(k)).map((k) => ({ kind: k, name: ING[k].name.toLowerCase(), inPan: this.ings.some((i) => i.kind === k && i.loc === 'pan') }));
   }
   hint() {
+    const h = this._hint(), o = this.order, cup = this.drink;
+    if (this.drinking) return { text: 'Hold a liquid to pour, then add extras 🍹' };
+    if (h && h.tool === 'serve' && o && o.drink && !cup.ready) return { text: `Don't forget: ${drinkById(o.drink).icon} ${drinkById(o.drink).name}! Tap 🍹 Drinks`, tool: 'drinks' };
+    if (this.mode === 'free' && !this.foods.length && !this.ings.length && cup.ready && !this.servedLock) return { text: 'Tap Serve to enjoy it! 🛎️', tool: 'serve' };
+    return h;
+  }
+  _hint() {
     const o = this.target(), R = o.recipe, want = o.eggs || 1;
     if (this.mode === 'tutorial') { const st = S.TUTORIAL[this.tutStep]; return st ? { text: st.text, tool: st.tool } : null; }
     if (this.servedLock) return null;
@@ -1003,7 +1035,7 @@ export class Game {
       a.step && a.step(k, dt);
       if (k >= 1) { this.anims.splice(i, 1); a.done && a.done(); }
     }
-    this._updatePour(dt);
+    this._updatePour(dt); this.drink.update(dt);
     this.fx.update(dt);
     this.kitchen.updateFlames(this.heat, this.time);
     const turn = this.kitchen.knob.userData.turn;
@@ -1078,7 +1110,7 @@ export class Game {
     if (T > 175 && (wet > 0.2 || butterWet > 0.2) && (fc.spatter -= dt) < 0) { fc.spatter = 0.35 - hot * 0.2; this.fx.emit('spatter', _v2.set(_v.x, _v.y + 0.08, _v.z), { count: 2, spread: 1.2 }); }
 
     // orders & tutorial
-    if (this.mode === 'orders' && this.order && !this.decorating) this.orderTime += dt; // art is never rushed
+    if (this.mode === 'orders' && this.order && !this.decorating && !this.drinking) this.orderTime += dt; // art and drinks are never rushed
     if (this.mode === 'tutorial') {
       const st = S.TUTORIAL[this.tutStep];
       if (st && st.done(this)) { this.tutStep++; audio.pop(); this.emit('tutorial', this.tutStep); }

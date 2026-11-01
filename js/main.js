@@ -201,7 +201,7 @@ function boot() {
 
   const ui = new UI({ game, interactor, settings, onResetCamera: () => resetCamera(false), onQuality: () => { applyQuality(); saveSettings(settings); },
     onAtmos: (a) => { atmos.set(a); saveSettings(settings); }, onWeather: (w) => { atmos.setWeather(w); saveSettings(settings); }, perf, decor,
-    onEquip: (eq) => equipAll({ mats, props, decor }, eq), onPhoto: (info) => takePhoto(info), onDecorate: (on) => decorateCam(on) });
+    onEquip: (eq) => equipAll({ mats, props, decor }, eq), onPhoto: (info) => takePhoto(info), onDecorate: (on) => decorateCam(on), onDrinkCam: (on) => decorateCam(on, true) });
   equipAll({ mats, props, decor }, settings.equip);
   decor.radio.onTap = () => ui.setRadio(audio.station + 1);
   game.on('served', (d) => { const st = d && d.result ? d.result.stars : 3; setTimeout(() => decor.react(st), 700); });
@@ -210,14 +210,16 @@ function boot() {
   // ---------- plate art camera ----------
   // Glide in above the plate while decorating, and back to wherever the player was afterwards.
   let artCamHome = null;
-  function decorateCam(on) {
+  function decorateCam(on, cup = false) {
     controls.enabled = !on;
     const fromP = camera.position.clone(), fromT = controls.target.clone();
     let toP, toT;
     if (on) {
       artCamHome = { p: fromP, t: fromT };
       toT = props.plate.position.clone(); toT.y += 0.1;
-      toP = toT.clone().add(new THREE.Vector3().setFromSphericalCoords(portraitDist(), 0.42, controls.getAzimuthalAngle()));
+      // for a drink, a lower angle shows the layers, and aiming below the cup keeps it clear of the panel
+      if (cup) { game.drink.group.getWorldPosition(toT); toT.y -= window.innerWidth < window.innerHeight ? 1.5 : 0.75; toT.z += 0.2; }
+      toP = toT.clone().add(new THREE.Vector3().setFromSphericalCoords(portraitDist() + (cup ? 1.6 : 0), cup ? 1.02 : 0.42, controls.getAzimuthalAngle()));
     } else if (artCamHome) { toP = artCamHome.p; toT = artCamHome.t; artCamHome = null; }
     else return;
     game.anim(0.5, (t) => { const k = t * t * (3 - 2 * t); camera.position.lerpVectors(fromP, toP, k); controls.target.lerpVectors(fromT, toT, k); });
@@ -230,7 +232,11 @@ function boot() {
   function takePhoto({ title = 'My dish', stars = 0 } = {}) {
     const saved = { p: camera.position.clone(), q: camera.quaternion.clone() };
     const target = props.plate.position.clone(); target.y += 0.25;
-    camera.position.copy(target).add(new THREE.Vector3().setFromSphericalCoords(4.4, 0.72, controls.getAzimuthalAngle() + 0.2));
+    // the picture is a square from the middle of the screen, so tall screens need to step back; a drink gets into frame too
+    const hasDrink = game.drink.group.visible;
+    if (hasDrink) { const cup = game.drink.group.getWorldPosition(new THREE.Vector3()); target.x = (target.x + cup.x) / 2; target.z = (target.z + cup.z) / 2; }
+    const dist = (hasDrink ? 5.8 : 4.4) * Math.max(1, window.innerHeight / window.innerWidth);
+    camera.position.copy(target).add(new THREE.Vector3().setFromSphericalCoords(dist, 0.72, controls.getAzimuthalAngle() + 0.2));
     camera.lookAt(target); camera.updateMatrixWorld();
     if (usePost) post.render(scene, camera); else renderer.render(scene, camera);
     const src = renderer.domElement, side = Math.min(src.width, src.height) * 0.9;

@@ -4,6 +4,7 @@ import { ING } from './ingredients.js';
 import { BOOK, bookById } from './recipes.js';
 import { pickCustomers, greet } from './customers.js';
 import { artLabel } from './art.js';
+import { drinkFor } from './drinklist.js';
 
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -27,12 +28,15 @@ export function makeRound(hearts = {}) {
   const used = new Set();
   const take = (...pools) => { for (const p of pools) for (const e of p) if (!used.has(e.id)) { used.add(e.id); return e; } return BOOK[0]; };
   const slots = [[1, () => take(t1)], [2, () => take(t1, t2)], [2, () => take(t2)], [2, () => take(t2)], [3, () => take(t3, t2)]];
-  return slots.map(([maxDiff, next], i) => {
+  const round = slots.map(([maxDiff, next], i) => {
     // regulars sometimes ask for their favourite dish
     const fav = bookById(c[i].fav);
     if (fav && !used.has(fav.id) && fav.diff <= maxDiff && Math.random() < 0.4) { used.add(fav.id); return orderFrom(fav, c[i]); }
     return orderFrom(next(), c[i]);
   });
+  // from the second customer on, about half want something to drink as well
+  round.forEach((o, i) => { if (i && Math.random() < 0.55) o.drink = drinkFor(c[i].drink, slots[i][0]); });
+  return round;
 }
 export const tutorialOrder = () => orderFrom(bookById('sunny'), ['🐣', 'Chick'], { level: 'runny', patience: 9999 });
 

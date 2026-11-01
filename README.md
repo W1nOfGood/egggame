@@ -47,6 +47,7 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 - **🌹 Secret Admirer**: a special regular who comes in every shift (favourite: Sunday Short Stack). Every 2 hearts unlocks a love note, read from 💌 Regulars. The letters live in `js/lovenotes.js`: rewrite them in your own words and run `node build.mjs`.
 - **🎨 Decorate**: once something is on the plate, tap Decorate to draw with sauces (ketchup, sriracha, mayo, maple syrup, chocolate, berry coulis), drop toppings (blueberries, strawberry hearts, whipped cream, chives, sprinkles, sugar skulls) or squeeze a ready-made shape. It follows the real shape of the food, shows up in photos, adds +🪙3, and the order clock stops while you decorate.
 - **🥞 Sweet dishes**: press Batter and drag over the pan to pour a pancake (hold longer for a bigger one, or just tap), flip when bubbles appear, and stack them on the plate. French toast works the same way from its tray button. Six new recipes score toppings instead of seasoning.
+- **🍹 Drinks**: 80 non-alcoholic drinks in the Drink Menu (coffee, tea, cozy, juice, fizzy, spooky). Tap Drinks in the kitchen, hold a liquid to pour, add extras and pick a cup; the fill bar shows how much is in and the target mix. Recipes match on exact liquids and extras, with proportions telling close cousins apart. About half of orders after the first ask for a drink too: it never changes the dish score, earns tips, and a regular's favourite made perfectly adds a heart. The order clock stops while you pour. Add a drink with one line in `js/drinklist.js`.
 - **📔 Scrapbook**: Snap photo pastes the polaroid into an album (up to 60) where you can add captions, share or remove it. Photos are stored in this browser on this device only. The calendar marks every visit; the first visit each day earns a treat from Noxie, with bonuses at 3, 7, 14 and 30 days. Missing one day doesn't break the streak.
 - **Regulars** (💌 on the title screen): 10 named customers with their own lines and favourite dish. Good dishes fill their heart meter (favourites count double); a full meter unlocks a thank-you note.
 - **Tips & 🛍️ Shop**: every dish earns 🪙 tips (half in practice). Spend them on looks only: pans (incl. a midnight-plum pan with a skull-bow charm), plates, spatulas (bat-wing!), Noxie's outfits, a heart-shaped egg ring and a nap cushion.
@@ -91,6 +92,9 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 | `js/recipes.js` | the recipe book data: every dish, its ingredients, steps and tips (orders are drawn from it) |
 | `js/book.js` | the recipe book overlay UI |
 | `js/art.js` | plate art: sauce beads that follow the food, toppings, ready-made shapes, the batter jug |
+| `js/drinklist.js` | every drink, liquid, extra and cup; recognising and rating a drink (no rendering) |
+| `js/drinks.js` | the 3D cup behind the plate: pouring, layers, extras |
+| `js/drinkbar.js` | the pouring panel, the Drink Menu screen and drink tips |
 | `js/lovenotes.js` | the Secret Admirer's letters (safe to edit) |
 | `js/scrapbook.js` | daily visits, streak and Noxie's gift; the photo album in IndexedDB |
 | `js/ingredients.js` | bacon, ham, sausage, cheese, rice, toast and tomato: simulation (per-side cooking, browning, tossing) and procedural visuals |

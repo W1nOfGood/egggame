@@ -65,6 +65,7 @@ export class Interactor {
     audio.init(); audio.resume();
     if (this.game.busy) return;
     if (this.drag || this.pending) { e.stopImmediatePropagation(); return; } // ignore extra fingers while interacting
+    if (this.game.drinking) { e.stopImmediatePropagation(); e.preventDefault(); return; } // everything happens in the panel
     if (this.game.decorating) { // the whole canvas is the sauce bottle
       e.stopImmediatePropagation(); e.preventDefault();
       this.setRay(e); this.drag = { id: e.pointerId, kind: 'art', x0: e.clientX, y0: e.clientY };
@@ -153,7 +154,7 @@ export class Interactor {
   }
   trayPromote(e) {
     const { tool } = this.pending; this.pending = null;
-    if (tool === 'flip' || tool === 'toss' || tool === 'decorate') return this.trayTap(tool);
+    if (tool === 'flip' || tool === 'toss' || tool === 'decorate' || tool === 'drinks') return this.trayTap(tool);
     if (tool === 'batter') { if (this.game.beginPour()) { this.drag = { id: e.pointerId, kind: 'pour', x0: e.clientX, y0: e.clientY }; this.movePour(e); } return; }
     const d = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: true, t0: performance.now(), last: performance.now(), fromTray: true };
     if (tool === 'butter') this.beginHeld('butter', e, d);
@@ -175,6 +176,7 @@ export class Interactor {
     else if (tool === 'flip') g.autoFlip();
     else if (tool === 'batter') g.autoPour();
     else if (tool === 'decorate') g.beginDecorate();
+    else if (tool === 'drinks') g.beginDrink();
   }
   autoEgg() {
     const g = this.game;

@@ -578,3 +578,49 @@ html, body { overflow: hidden; }
 @media (max-width: 560px) { .scrap-top { grid-template-columns: 1fr; } }
 @media (max-aspect-ratio: 1/1) { #hud.decorating #hint { display: none; } }
 @media (max-width: 420px) { .art-label { flex-basis: 50px; font-size: 11px; } .art-opts { gap: 5px; } .art-opt { flex-basis: 40px; height: 40px; font-size: 20px; } }
+
+/* ---------- drinks ---------- */
+@media (max-width: 420px) { #drink-panel { padding: 8px 10px; gap: 4px; } #drink-panel .art-label { display: none; } #drink-panel .art-opts.wrap { gap: 4px; } #drink-panel .art-opts.wrap .art-opt { flex: 0 0 37px; height: 34px; font-size: 18px; } #drink-panel .art-act { height: 38px; } }
+#drinks-tabs { background: none; border: 0; padding: 8px 0 0; flex-wrap: wrap; overflow: visible; }
+[data-theme="plum"] #drinks-tabs .book-tab:not(.on) { background: #3a2758; border-color: #5b437e; color: var(--ink); }
+#drink-panel {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(10px + var(--safe-b));
+  width: min(640px, calc(100vw - 16px)); max-height: 62vh; overflow: auto; padding: 10px 12px; display: grid; gap: 6px;
+}
+#hud.drinking #hint { display: none; }
+.art-opts.wrap { flex-wrap: wrap; overflow: visible; gap: 5px; }
+.art-opts.wrap .art-opt { flex: 0 0 38px; height: 38px; font-size: 20px; }
+#dk-liquids .art-opt { touch-action: none; position: relative; overflow: hidden; }
+#dk-liquids .art-opt::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: var(--c); }
+#dk-liquids .art-opt.held { transform: scale(.9); border-color: var(--coral); }
+.art-opt.want { border-color: var(--butter); }
+.art-opt.want.on, .art-opt.on { border-color: var(--coral); }
+[data-theme="plum"] .art-opt.want { border-color: #ffd86b; box-shadow: 0 0 0 2px rgba(255, 216, 107, .3); }
+[data-theme="plum"] .art-opt.want.on { border-color: #ff8fc8; }
+.dk-head { display: flex; align-items: center; gap: 10px; }
+.dk-goal { flex: 1; min-width: 0; text-align: left; font-size: 15px; }
+.dk-goal small { display: block; font-size: 12px; color: var(--ink-soft); line-height: 1.25; margin-top: 1px; }
+.dk-head .art-act { flex: 0 0 auto; height: 36px; padding: 0 12px; font-size: 13px; }
+.dk-bars { display: grid; gap: 3px; }
+.dk-bar { position: relative; height: 14px; border-radius: 8px; overflow: hidden; background: rgba(180, 140, 255, .15); }
+.dk-fill { display: flex; height: 100%; }
+.dk-fill i { display: block; height: 100%; }
+.dk-zone { position: absolute; top: 0; bottom: 0; left: 75%; right: 0; border-left: 2px dashed rgba(255, 216, 107, .9); background: rgba(255, 216, 107, .14); pointer-events: none; }
+.dk-want { height: 6px; border-radius: 4px; overflow: hidden; opacity: .9; }
+.dk-status { min-height: 18px; font-size: 13px; font-weight: 700; text-align: center; }
+.drinks-detail { display: flex; align-items: center; gap: 14px; margin: 10px 0; padding: 12px 14px; border-radius: 18px; border: 2px solid var(--line); text-align: left; }
+.dd-ico { font-size: 44px; line-height: 1; }
+.dd-txt { flex: 1; min-width: 0; }
+.dd-txt h3 { margin: 0; font-size: 18px; }
+.dd-txt p { margin: 2px 0; font-size: 13.5px; }
+.dd-txt .dd-recipe { font-weight: 700; }
+.dd-txt small, .dd-later { font-size: 12px; color: var(--ink-soft); }
+.drinks-detail .big-btn { flex: 0 0 auto; padding-left: 16px; padding-right: 16px; font-size: 16px; }
+.drinks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.drink-card { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border-radius: 14px; border: 2px solid var(--line); background: none; opacity: .72; }
+.drink-card.made { opacity: 1; background: rgba(255, 143, 200, .12); }
+.drink-card.on { opacity: 1; border-color: #ff8fc8; box-shadow: 0 0 0 3px rgba(255, 143, 200, .3); }
+.dc-ico { font-size: 28px; line-height: 1.1; }
+.drink-card b { font-size: 12px; line-height: 1.15; }
+.drink-card small { font-size: 10px; line-height: 1.2; }
+@media (max-width: 560px) { .drinks-detail { flex-wrap: wrap; } .drinks-detail .big-btn { width: 100%; } }

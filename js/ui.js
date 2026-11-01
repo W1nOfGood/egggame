@@ -9,6 +9,8 @@ import { BOOK, bookById } from './recipes.js';
 import { SHOP, SHOP_CATS, DEFAULT_EQUIP, itemById } from './shop.js';
 import { REGULARS, regularById, heartsFor, HEART_MAX } from './customers.js';
 import { LOVE_NOTES } from './lovenotes.js';
+import { DrinkBar } from './drinkbar.js';
+import { drinkById } from './drinklist.js';
 import { SAUCES, TOPPINGS, STAMPS, artLabel } from './art.js';
 import { ALBUM_MAX, albumAll, albumCount, albumDelete, albumPut, calendarHTML, checkIn, streakOf, toJpeg } from './scrapbook.js';
 
@@ -26,20 +28,21 @@ const _v = new THREE.Vector3();
 
 export function loadSettings() {
   const def = { music: 0.45, sfx: 0.8, guide: true, hints: true, quality: (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) ? 'high' : 'auto', atmos: 'plum', weather: 'rain', smooth: '120', radio: 0, best: 0, tutorialDone: false,
-    coins: 30, owned: [], equip: {}, hearts: {}, notes: [], dishes: {}, visits: [], lettersRead: [] };
+    coins: 30, owned: [], equip: {}, hearts: {}, notes: [], dishes: {}, visits: [], lettersRead: [], drinks: {} };
   try { return Object.assign(def, JSON.parse(localStorage.getItem(STORE) || '{}')); } catch { return def; }
 }
 export function saveSettings(s) { try { localStorage.setItem(STORE, JSON.stringify(s)); } catch { /* private mode */ } }
 
 export class UI {
-  constructor({ game, interactor, settings, onResetCamera, onQuality, onAtmos, onWeather, perf, decor, onEquip, onPhoto, onDecorate }) {
+  constructor({ game, interactor, settings, onResetCamera, onQuality, onAtmos, onWeather, perf, decor, onEquip, onPhoto, onDecorate, onDrinkCam }) {
     this.onEquip = onEquip; this.onPhoto = onPhoto; this.onDecorate = onDecorate;
     this.game = game; this.ix = interactor; this.s = settings;
     this.onResetCamera = onResetCamera; this.onQuality = onQuality; this.onAtmos = onAtmos; this.onWeather = onWeather; this.perf = perf; this.decor = decor;
     this.hintT = 0; this.lastHint = '';
-    this.screens = ['title', 'pause', 'settings', 'dish', 'results', 'loading', 'nogl', 'shop', 'regulars', 'letter', 'scrapbook', 'photo'];
+    this.screens = ['title', 'pause', 'settings', 'dish', 'results', 'loading', 'nogl', 'shop', 'regulars', 'letter', 'scrapbook', 'photo', 'drinks'];
     this.book = new RecipeBook({ onCook: (id) => this.practice(id), onClose: () => this._afterBook(), progress: () => this.s.dishes, daily: dailyId });
     this._bindMenus(); this._bindDial(); this._bindTray(); this._bindGame(); this._bindArt();
+    this.bar = new DrinkBar({ game, settings, show: (n) => this.show(n), hideScreens: () => this.hideScreens(), save: () => saveSettings(this.s), startFree: () => this.startMode('free'), camera: (on) => onDrinkCam && onDrinkCam(on) });
     this._applySettings();
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(true); });
     // Block Safari page pinch-zoom / double-tap zoom gestures over the game
@@ -64,6 +67,7 @@ export class UI {
     click('letter-close', () => this.openRegulars());
     $('reg-list').addEventListener('click', (e) => { const b = e.target.closest('[data-letter]'); if (b) { audio.init(); audio.resume(); audio.pop(); this.openLetter(+b.dataset.letter); } });
     click('btn-scrapbook', () => this.openScrapbook());
+    click('btn-drinks', () => this.bar.openMenu());
     click('scrap-close', () => this.show('title'));
     click('photo-close', () => this.openScrapbook());
     click('photo-share', () => this._photo && this.sharePhoto(this._photo.url));
@@ -267,7 +271,9 @@ export class UI {
     // regulars' heart meters
     const c = o.custId && regularById(o.custId);
     if (c) {
-      const add = heartsFor(c, r.stars, o.id), was = s.hearts[c.id] || 0, now = Math.min(HEART_MAX, was + add);
+      // their favourite drink, made perfectly, is worth a heart of its own
+      const favDrink = d.drink && d.drink.drink && d.drink.drink.id === c.drink && d.drink.stars >= 3 ? 1 : 0;
+      const add = heartsFor(c, r.stars, o.id) + favDrink, was = s.hearts[c.id] || 0, now = Math.min(HEART_MAX, was + add);
       s.hearts[c.id] = now;
       if (c.special) for (const n of LOVE_NOTES) if (was < n.at && now >= n.at) out.push(`<span class="rw note">💌 A new love note: “${esc(n.title)}” (Regulars)</span>`);
       if (add) out.push(`<span class="rw heart">${c.avatar} +${'💗'.repeat(add)} <small>${now}/${HEART_MAX}</small></span>`);
@@ -439,6 +445,7 @@ export class UI {
     const g = this.game, f = g.food || g.ings.find((i) => i.kind === 'rice') || null, chips = [];
     const chip = (txt, done, no) => `<span class="chip${done ? ' done' : ''}${no ? ' no' : ''}">${txt}</span>`;
     chips.push(chip('🧈 Butter', g.butter.amount > 0));
+    if (o.drink) { const dr = drinkById(o.drink); chips.push(chip(`${dr.icon} ${dr.name}`, g.drink.made() === dr)); }
     const sweet = isSweet(o.recipe);
     if (sweet) {
       const got = g.ings.filter((i) => i.kind === o.recipe && i.loc === 'plate').length;
@@ -462,15 +469,17 @@ export class UI {
   _showDish(d) {
     const g = this.game;
     g.paused = true;
-    this._lastDish = { title: d.free ? 'Free Cook' : orderTitle(d.order), stars: d.free ? 0 : d.result.stars };
+    const onlyDrink = d.free && !d.text, drunk = d.drink && d.drink.drink;
+    this._lastDish = { title: onlyDrink ? (drunk ? drunk.name : 'House Special') : d.free ? 'Free Cook' : orderTitle(d.order), stars: d.free ? (onlyDrink && d.drink.stars) || 0 : d.result.stars };
     $('dish-photo').classList.add('hidden'); $('dish-rewards').innerHTML = '';
     this._snapUrl = null; $('btn-photo').textContent = '📸 Snap photo';
     if (d.free) {
-      $('dish-stars').innerHTML = '🍳';
-      $('dish-title').textContent = 'Bon appétit!';
+      $('dish-stars').innerHTML = onlyDrink ? (drunk ? drunk.icon : '🍹') : '🍳';
+      $('dish-title').textContent = onlyDrink ? 'Cheers!' : 'Bon appétit!';
       $('dish-score').textContent = '';
       $('dish-breakdown').innerHTML = '';
-      $('dish-quote').textContent = d.text;
+      $('dish-quote').textContent = onlyDrink ? (drunk ? `${drunk.name}: ${drunk.blurb}` : d.drink.note) : d.text;
+      $('dish-rewards').innerHTML = this.bar.reward(d);
       $('btn-next').textContent = 'Cook another';
     } else {
       const r = d.result;
@@ -479,7 +488,7 @@ export class UI {
       $('dish-score').textContent = r.total;
       $('dish-breakdown').innerHTML = r.lines.map((l) => `<li><span>${l.label}<small>${l.note}</small></span><b>${l.pts}${l.max ? ' / ' + l.max : ''}</b></li>`).join('');
       $('dish-quote').textContent = `${d.order.avatar} “${d.quote}”`;
-      $('dish-rewards').innerHTML = this._reward(d);
+      $('dish-rewards').innerHTML = this.bar.reward(d) + this._reward(d);
       const last = g.mode === 'orders' && g.orderIdx + 1 >= g.orders.length;
       $('btn-next').textContent = g.mode === 'tutorial' ? 'Finish tutorial' : g.mode === 'free' ? 'Cook it again' : last ? 'See results' : 'Next order';
       if (g.mode === 'orders') { $('score-val').textContent = g.roundScore; const p = $('score-pill'); p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
@@ -512,6 +521,7 @@ export class UI {
   update(dt, camera) {
     const g = this.game;
     if (g.mode === 'menu') return;
+    this.bar.update();
     // hint + tray suggestion (throttled)
     this.hintT -= dt;
     if (this.hintT <= 0) {
