@@ -38,6 +38,8 @@ export const DONENESS = {
   scrambled: { soft: { label: 'Soft & creamy', w: [0.5, 0.78] }, medium: { label: 'Medium curds', w: [0.78, 0.92] }, well: { label: 'Well done', w: [0.92, 1.01] } },
   omelette: { soft: { label: 'Soft & creamy', w: [0.5, 0.78] }, medium: { label: 'Medium', w: [0.78, 0.92] }, well: { label: 'Well done', w: [0.92, 1.01] } },
   friedrice: { fluffy: { label: 'Fluffy', c: [0.45, 0.8] }, crispy: { label: 'Crispy & golden', c: [0.85, 1.2] } },
+  pancake: { golden: { label: 'Golden & fluffy', c: [0.5, 0.95] } },
+  frenchtoast: { golden: { label: 'Golden & custardy', c: [0.55, 0.95] } },
 };
-export const RECIPE_NAMES = { sunny: 'Sunny-side up', over: 'Over-easy (flipped)', scrambled: 'Scrambled eggs', omelette: 'Omelette', friedrice: 'Egg fried rice', sheet: 'Flat omelette' };
-export const RECIPE_ICONS = { sunny: '🍳', over: '🥚', scrambled: '🧀', omelette: '🌙', friedrice: '🍚', sheet: '🥚' };
+export const RECIPE_NAMES = { sunny: 'Sunny-side up', over: 'Over-easy (flipped)', scrambled: 'Scrambled eggs', omelette: 'Omelette', friedrice: 'Egg fried rice', sheet: 'Flat omelette', pancake: 'Pancakes', frenchtoast: 'French toast' };
+export const RECIPE_ICONS = { sunny: '🍳', over: '🥚', scrambled: '🧀', omelette: '🌙', friedrice: '🍚', sheet: '🥚', pancake: '🥞', frenchtoast: '🥪' };

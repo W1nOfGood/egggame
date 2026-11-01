@@ -201,11 +201,29 @@ function boot() {
 
   const ui = new UI({ game, interactor, settings, onResetCamera: () => resetCamera(false), onQuality: () => { applyQuality(); saveSettings(settings); },
     onAtmos: (a) => { atmos.set(a); saveSettings(settings); }, onWeather: (w) => { atmos.setWeather(w); saveSettings(settings); }, perf, decor,
-    onEquip: (eq) => equipAll({ mats, props, decor }, eq), onPhoto: (info) => takePhoto(info) });
+    onEquip: (eq) => equipAll({ mats, props, decor }, eq), onPhoto: (info) => takePhoto(info), onDecorate: (on) => decorateCam(on) });
   equipAll({ mats, props, decor }, settings.equip);
   decor.radio.onTap = () => ui.setRadio(audio.station + 1);
   game.on('served', (d) => { const st = d && d.result ? d.result.stars : 3; setTimeout(() => decor.react(st), 700); });
   game.settings = settings;
+
+  // ---------- plate art camera ----------
+  // Glide in above the plate while decorating, and back to wherever the player was afterwards.
+  let artCamHome = null;
+  function decorateCam(on) {
+    controls.enabled = !on;
+    const fromP = camera.position.clone(), fromT = controls.target.clone();
+    let toP, toT;
+    if (on) {
+      artCamHome = { p: fromP, t: fromT };
+      toT = props.plate.position.clone(); toT.y += 0.1;
+      toP = toT.clone().add(new THREE.Vector3().setFromSphericalCoords(portraitDist(), 0.42, controls.getAzimuthalAngle()));
+    } else if (artCamHome) { toP = artCamHome.p; toT = artCamHome.t; artCamHome = null; }
+    else return;
+    game.anim(0.5, (t) => { const k = t * t * (3 - 2 * t); camera.position.lerpVectors(fromP, toP, k); controls.target.lerpVectors(fromT, toT, k); });
+  }
+  // room for the whole plate above the art panel, on any screen shape
+  const portraitDist = () => Math.max(5.6, 3.6 / Math.min(1, window.innerWidth / window.innerHeight));
 
   // ---------- photo mode ----------
   // Swing the camera in close over the plate for one frame, grab the canvas, and frame it like a little polaroid.

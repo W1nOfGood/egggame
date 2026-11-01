@@ -79,6 +79,8 @@
         <button class="tool" data-tool="rice"><span class="ico">🍚</span><span>Rice</span></button>
         <button class="tool" data-tool="bread"><span class="ico">🍞</span><span>Toast</span></button>
         <button class="tool" data-tool="tomato"><span class="ico">🍅</span><span>Tomato</span></button>
+        <button class="tool" data-tool="batter"><span class="ico">🥞</span><span>Batter</span></button>
+        <button class="tool" data-tool="frenchtoast"><span class="ico">🥪</span><span>Fr. toast</span></button>
       </nav>
 
       <nav id="tray" class="tray">
@@ -90,9 +92,17 @@
         <button id="btn-flip" class="tool flip-tool hidden" data-tool="flip" aria-label="Flip"><span class="ico">↻</span><span>Flip</span></button>
         <button class="tool" data-tool="salt"><span class="ico">🧂</span><span>Salt</span></button>
         <button class="tool" data-tool="pepper"><span class="ico pepper-ico">●</span><span>Pepper</span></button>
+        <button class="tool" data-tool="decorate"><span class="ico">🎨</span><span>Decorate</span></button>
         <button class="tool" data-tool="toss"><span class="ico">🗑️</span><span>Toss</span></button>
         <button id="btn-serve" class="serve" disabled><span class="ico">🛎️</span><span>Serve</span></button>
       </nav>
+
+      <div id="art-panel" class="card hidden">
+        <div class="art-row"><span class="art-label">Sauce</span><div id="art-sauces" class="art-opts"></div></div>
+        <div class="art-row"><span class="art-label">Toppings</span><div id="art-tops" class="art-opts"></div></div>
+        <div class="art-row"><span class="art-label">Shapes</span><div id="art-stamps" class="art-opts"></div></div>
+        <div class="art-actions"><button id="art-undo" class="art-act">↩ Undo</button><button id="art-clear" class="art-act">Clear</button><button id="art-done" class="art-act done">Done ✓</button></div>
+      </div>
 
       <div id="tutorial-panel" class="card hidden">
         <div class="tut-head"><b>Tutorial</b><button id="tut-skip" class="link-btn">Skip</button></div>
@@ -107,6 +117,7 @@
       <div class="panel title-panel">
         <div class="logo"><span class="logo-egg">🍳</span><h1>Crack <i>&amp;</i> Sizzle</h1></div>
         <p class="sub">A cozy little egg kitchen — eggs, omelettes, fried rice, bacon &amp; more</p>
+        <p id="visit-line" class="visit-line hidden"></p>
         <button id="daily" class="daily"></button>
         <div class="menu-buttons">
           <button id="btn-play" class="big-btn primary">Order Mode</button>
@@ -117,9 +128,12 @@
           <button id="btn-recipes" class="big-btn book-cta">📖 Recipe Book</button>
           <div class="btn-pair">
             <button id="btn-shop" class="big-btn shop-cta">🛍️ Shop <small id="coin-title"></small></button>
-            <button id="btn-regulars" class="big-btn soft">💌 Regulars</button>
+            <button id="btn-regulars" class="big-btn soft">💌 Regulars <small id="notes-new" class="new-badge hidden"></small></button>
           </div>
-          <button id="btn-tutorial" class="big-btn soft">How to Play</button>
+          <div class="btn-pair">
+            <button id="btn-scrapbook" class="big-btn soft">📔 Scrapbook</button>
+            <button id="btn-tutorial" class="big-btn soft">How to Play</button>
+          </div>
         </div>
         <p id="best-score" class="tiny"></p>
         <p class="tiny muted">Drag empty space to look around · pinch to zoom · drag objects to move them</p>
@@ -197,6 +211,41 @@
         <header class="wide-head"><h2>💌 Your Regulars</h2><button id="reg-close" class="book-close" aria-label="Close">✕</button></header>
         <p class="tiny">Good dishes fill their heart meter (favourite dishes count double). A full meter unlocks a thank-you note.</p>
         <ul id="reg-list" class="reg-list"></ul>
+      </div>
+    </div>
+
+    <div id="screen-letter" class="screen dim hidden">
+      <div class="letter" role="dialog" aria-label="Love note">
+        <div class="letter-seal">🌹</div>
+        <h3 id="letter-title"></h3>
+        <p id="letter-text"></p>
+        <p class="letter-sign">Yours, the Secret Admirer</p>
+        <button id="letter-close" class="big-btn primary">Fold it away</button>
+      </div>
+    </div>
+
+    <div id="screen-scrapbook" class="screen dim hidden">
+      <div class="panel wide-panel">
+        <header class="wide-head"><h2>📔 Scrapbook</h2><button id="scrap-close" class="book-close" aria-label="Close">✕</button></header>
+        <div class="scrap-top">
+          <div id="scrap-cal" class="calendar"></div>
+          <div class="scrap-streak"><div id="scrap-streak-n" class="streak-n"></div><p id="scrap-streak-t" class="tiny"></p></div>
+        </div>
+        <h3 class="scrap-h">Your photos</h3>
+        <div id="scrap-grid" class="scrap-grid"></div>
+      </div>
+    </div>
+
+    <div id="screen-photo" class="screen dim hidden">
+      <div class="panel photo-panel">
+        <img id="photo-img" class="photo-big" alt="A saved dish photo">
+        <input id="photo-caption" class="photo-caption" type="text" maxlength="60" placeholder="Write a caption…" aria-label="Photo caption">
+        <p id="photo-meta" class="tiny"></p>
+        <div class="btn-pair">
+          <button id="photo-share" class="big-btn soft">📤 Share</button>
+          <button id="photo-del" class="big-btn soft">🗑️ Remove</button>
+        </div>
+        <button id="photo-close" class="big-btn primary">Back to Scrapbook</button>
       </div>
     </div>
 

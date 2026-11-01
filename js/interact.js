@@ -65,6 +65,12 @@ export class Interactor {
     audio.init(); audio.resume();
     if (this.game.busy) return;
     if (this.drag || this.pending) { e.stopImmediatePropagation(); return; } // ignore extra fingers while interacting
+    if (this.game.decorating) { // the whole canvas is the sauce bottle
+      e.stopImmediatePropagation(); e.preventDefault();
+      this.setRay(e); this.drag = { id: e.pointerId, kind: 'art', x0: e.clientX, y0: e.clientY };
+      this.game.art.begin(this.ray); audio.pick();
+      return;
+    }
     if (this.orbiting) return; // let a second finger pinch-zoom
     const hit = this.pick(e);
     if (!hit) return; // empty space -> orbit camera
@@ -147,7 +153,8 @@ export class Interactor {
   }
   trayPromote(e) {
     const { tool } = this.pending; this.pending = null;
-    if (tool === 'flip' || tool === 'toss') return this.trayTap(tool);
+    if (tool === 'flip' || tool === 'toss' || tool === 'decorate') return this.trayTap(tool);
+    if (tool === 'batter') { if (this.game.beginPour()) { this.drag = { id: e.pointerId, kind: 'pour', x0: e.clientX, y0: e.clientY }; this.movePour(e); } return; }
     const d = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: true, t0: performance.now(), last: performance.now(), fromTray: true };
     if (tool === 'butter') this.beginHeld('butter', e, d);
     else if (tool === 'egg') {
@@ -166,6 +173,8 @@ export class Interactor {
     else if (tool === 'salt' || tool === 'pepper') g.autoSeason(tool);
     else if (tool === 'toss') g.toss();
     else if (tool === 'flip') g.autoFlip();
+    else if (tool === 'batter') g.autoPour();
+    else if (tool === 'decorate') g.beginDecorate();
   }
   autoEgg() {
     const g = this.game;
@@ -217,7 +226,14 @@ export class Interactor {
       case 'shaker': if (d.moved) this.moveShaker(e, dt); break;
       case 'held': this.moveHeld(e, dt); break;
       case 'move': this.moveProp(e, dt); break;
+      case 'art': this.setRay(e); g.art.move(this.ray); break;
+      case 'pour': this.movePour(e); break;
     }
+  }
+  movePour(e) {
+    const pt = this.planePoint(e, this.props.pan.position.y + PAN.floorY); if (!pt) return; // where the finger points on the pan, not on the jug
+    clampToCounter(pt);
+    this.game.pourMove(pt.x, pt.z);
   }
   moveSpatula(e, dt, first = false) {
     const g = this.game, pan = this.props.pan;
@@ -270,6 +286,8 @@ export class Interactor {
     this.drag = null;
     const g = this.game, pan = this.props.pan;
     switch (d.kind) {
+      case 'art': g.art.end(); break;
+      case 'pour': g.endPour(); break;
       case 'spatula': {
         const v = this.velocity();
         const flick = v.y < -650 && Math.abs(v.y) > 1.2 * Math.abs(v.x);
@@ -336,6 +354,7 @@ export class Interactor {
 
   onHover(e) {
     if (e.pointerType !== 'mouse' || this.drag || this.game.busy) return;
+    if (this.game.decorating) { this.canvas.style.cursor = 'crosshair'; return; }
     const now = performance.now(); if (now - (this._hoverT || 0) < 60) return; this._hoverT = now;
     const hit = this.pick(e);
     this.canvas.style.cursor = hit ? (hit.kind === 'crackEgg' || hit.kind === 'salt' || hit.kind === 'pepper' ? 'pointer' : 'grab') : 'default';

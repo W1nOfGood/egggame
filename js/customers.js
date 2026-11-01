@@ -5,6 +5,10 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 export const HEART_MAX = 10;
 
 export const REGULARS = [
+  { id: 'admirer', special: true, avatar: '🌹', name: 'Secret Admirer', fav: 'pancakes', blurb: 'Comes in every shift, sits by the window and leaves letters instead of tips.',
+    hi: ['Whatever you feel like making. I just like watching you cook.', 'Hello again. Yes, I came back. I always do.', 'Something sweet, if it isn\'t too much trouble?'],
+    happy: ['Exactly as lovely as the chef. 🌹', 'I\'d cross town in the rain for this.', 'I may have to write you another letter.'], meh: ['It\'s perfect, because you made it.', 'I\'d eat this happily every morning anyway.'],
+    note: '' },
   { id: 'velvet', avatar: '🦇', name: 'Velvet', fav: 'omelette', blurb: 'A sleepy bat who only eats at midnight.',
     hi: ['Is it breakfast or dinner? Both, I hope.', 'Something warm, please… the night is chilly.'],
     happy: ['Batty-good! 🦇💜', 'This is my new favourite midnight snack.'], meh: ['Hmm, close enough for 3 a.m.', 'A little sad, like a cloudy moon.'],
@@ -51,9 +55,11 @@ export const regularById = (id) => REGULARS.find((r) => r.id === id);
 
 /** Pick n customers for a round; regulars who are close to a full heart meter come back a little more often. */
 export function pickCustomers(n, hearts = {}) {
-  const pool = REGULARS.map((r) => ({ r, w: 1 + Math.min(HEART_MAX, hearts[r.id] || 0) * 0.08 + Math.random() }));
+  const pool = REGULARS.filter((r) => !r.special).map((r) => ({ r, w: 1 + Math.min(HEART_MAX, hearts[r.id] || 0) * 0.08 + Math.random() }));
   pool.sort((a, b) => b.w - a.w);
-  return pool.slice(0, n).map((p) => p.r);
+  const list = pool.slice(0, n - 1).map((p) => p.r);
+  list.splice((Math.random() * n) | 0, 0, regularById('admirer')); // the Secret Admirer never misses a shift
+  return list;
 }
 
 export const greet = (c) => pick(c.hi);

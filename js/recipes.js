@@ -1,7 +1,7 @@
 // The recipe book: every dish customers can order, with steps written for the in-game controls.
 // recipe = how the egg part is cooked (sunny / over / scrambled / omelette / friedrice)
 // extras = sides cooked separately and plated next to it, fill = folded in / stirred in / on top
-export const CATS = [['all', 'All'], ['eggs', 'Eggs'], ['omelette', 'Omelettes'], ['rice', 'Rice'], ['breakfast', 'Breakfasts']];
+export const CATS = [['all', 'All'], ['eggs', 'Eggs'], ['omelette', 'Omelettes'], ['rice', 'Rice'], ['breakfast', 'Breakfasts'], ['sweet', 'Sweet']];
 
 const S = {
   butter: ['Butter', 'Drag a pat of 🧈 butter into the pan (or tap Butter).'],
@@ -21,6 +21,10 @@ const side = (kind, label) => {
   }[kind];
   return [t[0], `${t[1]}${label ? ` Aim for ${label}.` : ''}`];
 };
+const pour = (n) => ['Pour', `Press and hold 🥞 Batter, then drag it over the pan: the longer you hold, the bigger the pancake. Pour ${n > 1 ? `${n} pancakes, one at a time` : 'one pancake'} (or just tap Batter).`];
+const sweetFlip = ['Flip', 'Wait for bubbles on top, then tap ↻ Flip or flick UP with the spatula.'];
+const stackUp = ['Stack', 'When the chip says Ready, lift each one onto the plate: they stack up by themselves.'];
+const dress = (what) => ['Decorate', `Tap 🎨 Decorate and add ${what}, then tap Done and 🛎️ Serve.`];
 const sidePlate = ['Plate sides', 'Lift each side with the spatula and drag it onto the plate next to the eggs.'];
 
 export const BOOK = [
@@ -125,6 +129,42 @@ export const BOOK = [
     blurb: 'A folded cheese omelette served with golden toast. Cozy weekend food.',
     steps: [side('bread', 'golden'), ['Plate toast', 'Put the toast on the plate as soon as it is golden to free up the pan.'], S.butter, S.crackN(2), ['Beat', 'Stir ONE slow circle, then let go — the eggs become one sheet.'], ['Fill', 'Add 🧀 Cheese on top while it sets.'], ['Fold', 'Lift and flick UP (or tap ↻ Flip) to fold.'], S.plate, S.season(true, true)],
     tip: 'Toast first, omelette second — the omelette needs the whole pan.',
+  },
+  {
+    id: 'firstpancake', title: 'Little Pancake', icon: '🥞', cat: 'sweet', recipe: 'pancake', levels: ['golden'], eggs: 0, stack: 1, toppings: ['syrup'], extras: [], fill: [], salt: false, pepper: false, diff: 1, time: '2 min',
+    blurb: 'One fluffy pancake and a drizzle of maple syrup. The first one is always for the cook.',
+    steps: [S.butter, S.heat(4), pour(1), sweetFlip, stackUp, dress('🍁 maple syrup')],
+    tip: 'A big, slow pour makes a fluffier pancake. Tiny ones lose a few points.',
+  },
+  {
+    id: 'pancakes', title: 'Sunday Short Stack', icon: '🥞', cat: 'sweet', recipe: 'pancake', levels: ['golden'], eggs: 0, stack: 3, toppings: ['syrup'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min',
+    blurb: 'Three golden pancakes in a wobbly tower with maple syrup running down the sides.',
+    steps: [S.butter, S.heat(4), pour(3), sweetFlip, stackUp, dress('🍁 maple syrup')],
+    tip: 'Medium-low heat gives you time to keep all three pancakes happy at once.',
+  },
+  {
+    id: 'berrycakes', title: 'Berry Cloud Pancakes', icon: '🫐', cat: 'sweet', recipe: 'pancake', levels: ['golden'], eggs: 0, stack: 2, toppings: ['blueberry', 'whip'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min',
+    blurb: 'Two pancakes under a soft cloud of whipped cream and a handful of blueberries.',
+    steps: [S.butter, S.heat(4), pour(2), sweetFlip, stackUp, dress('🫐 blueberries and 🍦 whipped cream')],
+    tip: 'Whipped cream first, then berries on top: they follow whatever is on the plate.',
+  },
+  {
+    id: 'midnightcakes', title: 'Midnight Pancakes', icon: '💀', cat: 'sweet', recipe: 'pancake', levels: ['golden'], eggs: 0, stack: 3, toppings: ['choc', 'skull'], extras: [], fill: [], salt: false, pepper: false, diff: 3, time: '5 min',
+    blurb: 'A tall stack with dark chocolate sauce and a sugar skull on top. Spookily good.',
+    steps: [S.butter, S.heat(4), pour(3), sweetFlip, stackUp, dress('🍫 chocolate sauce and a 💀 sugar skull')],
+    tip: 'The ☠️ shape in Decorate draws a chocolate skull if you want to go all in.',
+  },
+  {
+    id: 'frenchtoast', title: 'French Toast', icon: '🥪', cat: 'sweet', recipe: 'frenchtoast', levels: ['golden'], eggs: 0, stack: 2, toppings: ['syrup'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min',
+    blurb: 'Two custardy slices fried in butter until golden, with maple syrup.',
+    steps: [S.butter, S.heat(4), ['Add', 'Tap 🥪 French toast twice: each slice is already soaked and ready for the pan.'], ['Flip', 'Flip each slice when its chip turns blue.'], stackUp, dress('🍁 maple syrup')],
+    tip: 'All that sugary custard catches quickly, so plenty of butter and not too much heat.',
+  },
+  {
+    id: 'strawberrytoast', title: 'Strawberry French Toast', icon: '🍓', cat: 'sweet', recipe: 'frenchtoast', levels: ['golden'], eggs: 0, stack: 2, toppings: ['berry', 'strawberry', 'whip'], extras: [], fill: [], salt: false, pepper: false, diff: 3, time: '5 min',
+    blurb: 'French toast with berry coulis, heart-shaped strawberry slices and whipped cream.',
+    steps: [S.butter, S.heat(4), ['Add', 'Tap 🥪 French toast twice.'], ['Flip', 'Flip each slice when its chip turns blue.'], stackUp, dress('🍇 berry coulis, 🍓 strawberries and 🍦 whipped cream')],
+    tip: 'Sauce first, then the toppings on top of it.',
   },
 ];
 

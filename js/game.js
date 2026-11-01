@@ -5,14 +5,15 @@ import * as THREE from 'three';
 import { BURNER, GRATE_TOP, HOME, PAN, PLATE, ROOM_TEMP, heatToTarget, surfaceHeight } from './config.js';
 import { Food } from './food.js';
 import { makeShellHalves, makeButterPat } from './props.js';
-import { Ingredient, ING } from './ingredients.js';
+import { Ingredient, ING, STACKS } from './ingredients.js';
+import { PlateArt, makeJug, artLabel } from './art.js';
 import * as S from './scoring.js';
 import { audio } from './audio.js';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion();
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-export const MAX_PAN_EGGS = 3;
+export const MAX_PAN_EGGS = 3, MAX_PAN_STACK = 3;
 
 export class Game {
   constructor(world) {
@@ -32,6 +33,8 @@ export class Game {
     this.shk = { lastY: null, dir: 0, extreme: 0, cooldown: 0 };
     this.fxClock = { steam: 0, bubble: 0, smoke: 0, spatter: 0 };
     this._buildButterPool();
+    this.art = new PlateArt(this); this.decorating = false;
+    this.pour = null;
   }
   on(e, f) { (this.listeners[e] ||= []).push(f); }
   emit(e, d) { (this.listeners[e] || []).forEach((f) => f(d)); }
@@ -78,6 +81,7 @@ export class Game {
   }
   setOrder(i) { this.orderIdx = i; this.order = this.orders[i]; this.orderTime = 0; this.emit('order', this.order); }
   resetKitchen() {
+    this.endDecorate(); this.endPour(); this.art.clear();
     this.clearFood(true); this.clearButter(); this.clearIngs(true);
     this.setHeat(0, true); this.panTemp = ROOM_TEMP;
     this.fx.clear();
@@ -438,7 +442,10 @@ export class Game {
     for (const [x, z] of spots) { const d = Math.min(...occ.map((p) => Math.hypot(p.x - x, p.z - z))); if (d > bd) { bd = d; best = [x, z]; } }
     return best;
   }
-  canAddIng(kind, loc) { return !this.ings.some((i) => i.kind === kind && i.loc === loc); }
+  canAddIng(kind, loc) {
+    const n = this.ings.filter((i) => i.kind === kind && i.loc === loc).length;
+    return STACKS[kind] ? n < (loc === 'pan' ? MAX_PAN_STACK : 6) : !n;
+  }
   placeIngredient(ing, loc, lx = 0, lz = 0) {
     ing.loc = loc;
     if (loc === 'pan') {
@@ -446,9 +453,10 @@ export class Game {
       ing.buttered = this.butter.amount > 0;
       this.panAnchor.add(ing.group); ing.group.position.set(lx, 0.01, lz); audio.plop();
     } else {
-      const sl = PLATE_SLOT[ing.kind] || [0, 0];
-      this.plateAnchor.add(ing.group); ing.group.position.set(sl[0], 0, sl[1]); audio.clink();
-      ing.group.rotation.set(0, ing.yaw, 0); ing.group.scale.setScalar(0.8); ing.dirty = true; ing.refresh(true);
+      const sl = PLATE_SLOT[ing.kind] || [0, 0], stack = STACKS[ing.kind] || 0;
+      const under = stack ? this.ings.filter((i) => i !== ing && i.kind === ing.kind && i.loc === 'plate').length : 0;
+      this.plateAnchor.add(ing.group); ing.group.position.set(sl[0], under * stack, sl[1]); audio.clink();
+      ing.group.rotation.set(0, ing.yaw, 0); ing.group.scale.setScalar(stack ? 1.2 : 0.8); ing.dirty = true; ing.refresh(true);
       if (!this.ings.includes(ing)) this.ings.push(ing);
       this.emit('changed'); return;
     }
@@ -460,7 +468,7 @@ export class Game {
   /** Tap on the shelf / fridge: the ingredient arcs into the pan by itself. */
   autoIngredient(kind) {
     if (this.busy) return;
-    if (!this.canAddIng(kind, 'pan')) return this.toast(`${ING[kind].name} is already in the pan`);
+    if (!this.canAddIng(kind, 'pan')) return this.toast(STACKS[kind] ? 'The pan is full!' : `${ING[kind].name} is already in the pan`);
     const ing = new Ingredient(kind, { buttered: this.butter.amount > 0 });
     ing.loc = 'air'; this.scene.add(ing.group);
     const spot = this._freeSpot(); this.pendingSpots.push(spot); this.flying.add(ing);
@@ -500,7 +508,9 @@ export class Game {
       if (!this.ings.includes(ing)) return; // tossed mid-air
       this.panAnchor.add(g); g.position.set(lx, 0.01, lz); g.rotation.set(0, ing.yaw, 0); ing.loc = 'pan';
       this.spat.cooldown = 0.7; this.spat.mode = 'stir';
-      audio.plop(); if (ing.flips === 1) this.toast(`Nice flip! ${ING[ing.kind].icon}`, 'good');
+      audio.plop();
+      if (ing.messy && ing.flips === 1) { audio.tear(); this.toast('Flipped too early — it smeared! 😬', 'bad'); }
+      else if (ing.flips === 1) this.toast(`Nice flip! ${ING[ing.kind].icon}`, 'good');
       this.emit('changed');
     });
   }
@@ -545,6 +555,73 @@ export class Game {
       if (ing.loc !== 'pan' || (ing.kind !== 'cheese' && ing.kind !== 'ham')) continue;
       if (Math.hypot(ing.group.position.x - o.x, ing.group.position.z - o.z) < 0.85 + 0.15 * (f.eggs - 1)) { if (!f.fills.includes(ing.kind)) f.fills.push(ing.kind); ing.dispose(); this.ings.splice(i, 1); }
     }
+  }
+
+  // ---------------- pancake batter ----------------
+  /** The spot under the jug if nothing is in the way, else the nearest free pancake spot. */
+  _pourSpot(lx, lz) {
+    const others = this.ings.filter((i) => i.loc === 'pan').map((i) => i.group.position);
+    const clear = (x, z) => others.every((p) => Math.hypot(p.x - x, p.z - z) > 0.44);
+    const r = Math.hypot(lx, lz); if (r > 0.52) { lx *= 0.52 / r; lz *= 0.52 / r; }
+    if (clear(lx, lz)) return [lx, lz];
+    const slots = [[-0.42, 0.2], [0.42, 0.2], [0, -0.46]], free = slots.filter(([x, z]) => clear(x, z));
+    return (free.length ? free : slots).sort((a, b) => Math.hypot(a[0] - lx, a[1] - lz) - Math.hypot(b[0] - lx, b[1] - lz))[0];
+  }
+  beginPour() {
+    if (this.busy || this.pour) return false;
+    const jug = makeJug(), stream = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1, 8), new THREE.MeshPhysicalMaterial({ color: '#f7e4b0', roughness: 0.3, clearcoat: 0.6 }));
+    stream.visible = false; this.scene.add(jug, stream);
+    this.pour = { jug, stream, ing: null, warned: false, done: false };
+    audio.pick();
+    return true;
+  }
+  /** Move the jug (world x, z). It pours whenever it's over the pan. */
+  pourMove(x, z) {
+    const P = this.pour; if (!P) return;
+    const pan = this.props.pan, lx = x - pan.position.x, lz = z - pan.position.z;
+    P.jug.position.set(x + 0.25, pan.position.y + 1.35, z);
+    if (Math.hypot(lx, lz) > PAN.innerR + 0.1) { P.ing = null; P.done = false; P.stream.visible = false; return; }
+    if (P.ing || P.done) return;
+    if (!this.canAddIng('pancake', 'pan')) { if (!P.warned) { P.warned = true; this.toast(`The pan is full — ${MAX_PAN_STACK} pancakes at most!`); } return; }
+    const [sx, sz] = this._pourSpot(lx, lz), ing = new Ingredient('pancake', { size: 0.05, buttered: this.butter.amount > 0 });
+    this.placeIngredient(ing, 'pan', sx, sz);
+    P.ing = ing;
+  }
+  endPour() {
+    const P = this.pour; if (!P) return;
+    this.pour = null;
+    this.scene.remove(P.jug, P.stream);
+    P.stream.geometry.dispose(); P.stream.material.dispose();
+    this.emit('changed');
+  }
+  /** Tapping Batter pours one good-sized pancake by itself. */
+  autoPour() {
+    if (!this.beginPour()) return;
+    const pan = this.props.pan, [x, z] = this._pourSpot(-0.42, 0.2);
+    this.pourMove(pan.position.x + x, pan.position.z + z);
+    this.anim(1.6, () => {}, () => this.endPour());
+  }
+  _updatePour(dt) {
+    const P = this.pour; if (!P) return;
+    const ing = P.ing;
+    if (!ing || !this.ings.includes(ing)) { P.stream.visible = false; return; }
+    ing.size = Math.min(1, ing.size + dt * 0.5); ing.dirty = true;
+    if (ing.size >= 1) { P.ing = null; P.done = true; P.stream.visible = false; this.toast('That\'s a nice big pancake! Let go 🥞', 'good'); return; }
+    ing.group.getWorldPosition(_v); const y0 = _v.y + 0.05, y1 = P.jug.position.y - 0.1;
+    P.stream.visible = true; P.stream.position.set(_v.x, (y0 + y1) / 2, _v.z); P.stream.scale.y = y1 - y0;
+  }
+
+  // ---------------- plate art ----------------
+  beginDecorate() {
+    if (this.busy || this.decorating || this.servedLock) return;
+    if (!this.foodsAt('plate').length && !this.platedIngs().length) return this.toast('Put something on the plate first 🍽️');
+    this.decorating = true; this.art.prepare();
+    this.emit('decorate', true); this.emit('changed');
+  }
+  endDecorate() {
+    if (!this.decorating) return;
+    this.decorating = false;
+    this.emit('decorate', false); this.emit('changed');
   }
 
   // ---------------- flip button & per-item progress ----------------
@@ -599,7 +676,7 @@ export class Game {
   platedIngs() { return this.ings.filter((i) => i.loc === 'plate'); }
   plateHas(k) { return this.platedIngs().some((i) => i.kind === k) || this.foodsAt('plate').some((f) => f.fills.includes(k)); }
   canServe() {
-    if (this.busy || this.crack || this.carry || this.carryFood || this.servedLock) return false;
+    if (this.busy || this.crack || this.carry || this.carryFood || this.servedLock || this.decorating) return false;
     return this.foodsAt('plate').length > 0 || this.platedIngs().length > 0;
   }
 
@@ -760,13 +837,14 @@ export class Game {
     const stuff = !!(this.foods.length || this.crack || this.ings.length || this.flying.size);
     if (!stuff && this.butter.amount === 0) return this.toast('Nothing to toss.');
     audio.trash();
+    this.endPour(); this.art.clear();
     this.clearFood(false); this.clearIngs(false); this.clearButter();
     this.toast(stuff ? 'Tossed — pan wiped clean ✨' : 'Pan wiped clean ✨', 'good');
     this.emit('changed');
   }
   serve() {
     if (!this.canServe()) return;
-    const foods = this.foodsAt('plate'), ings = this.platedIngs();
+    const foods = this.foodsAt('plate'), ings = this.platedIngs(), art = this.art.used;
     this.servedLock = true; // locks the dish so it can only be scored once
     this.servedCount++;
     audio.ding();
@@ -775,15 +853,16 @@ export class Game {
     const plate = this.props.plate, y0 = plate.position.y;
     this.anim(0.5, (t) => { plate.position.y = y0 + Math.sin(Math.PI * t) * 0.35; plate.rotation.y = Math.sin(Math.PI * t) * 0.3; }, () => { plate.position.y = y0; plate.rotation.y = 0; });
     if (this.mode === 'free' && !this.freeGoal) { this.emit('served', { free: true, text: S.describe(foods, ings), food: foods[0] }); return; }
-    if (this.mode === 'free') { const result = S.evaluate(foods, this.freeGoal, { ings }); this.emit('served', { result, order: this.freeGoal, quote: S.describe(foods, ings), food: foods[0] }); return; }
+    if (this.mode === 'free') { const result = S.evaluate(foods, this.freeGoal, { ings, art }); this.emit('served', { result, order: this.freeGoal, quote: S.describe(foods, ings), food: foods[0] }); return; }
     const late = this.mode === 'orders' && !this.cozy && this.orderTime > this.order.patience;
-    const result = S.evaluate(foods, this.order, { late, ings });
+    const result = S.evaluate(foods, this.order, { late, ings, art });
     this.results.push({ order: this.order, result });
     this.roundScore += result.total;
     this.emit('served', { result, order: this.order, quote: this.order.custId ? reaction(regularById(this.order.custId), result.stars) : S.quoteFor(result.stars), food: foods[0] });
   }
   /** Called when the dish panel closes. */
   afterServe() {
+    this.art.clear();
     this.clearFood(false); this.clearButter(); this.clearIngs(false);
     if (this.mode === 'orders') {
       if (this.orderIdx + 1 >= this.orders.length) { this.emit('roundOver', { total: this.roundScore, results: this.results }); this.mode = 'results'; }
@@ -798,6 +877,8 @@ export class Game {
     if (this.freeGoal) return this.freeGoal;
     const rice = this.ings.find((i) => i.kind === 'rice');
     if (!this.foods.length && rice) return { recipe: 'friedrice', level: 'fluffy', eggs: 1, salt: true, pepper: false, extras: [], fill: [] };
+    const sweet = !this.foods.length && this.ings.find((i) => i.kind in STACKS);
+    if (sweet) return { recipe: sweet.kind, level: 'golden', eggs: 0, stack: 1, toppings: [], salt: false, pepper: false, extras: [], fill: [] };
     let r = this.food ? this.food.recipe : 'sunny';
     if (r === 'sheet') r = 'omelette';
     return { recipe: r, level: r === 'sunny' ? 'runny' : r === 'over' ? 'easy' : 'soft', eggs: 1, salt: true, pepper: false, extras: [], fill: [] };
@@ -818,6 +899,7 @@ export class Game {
     const o = this.target(), R = o.recipe, want = o.eggs || 1;
     if (this.mode === 'tutorial') { const st = S.TUTORIAL[this.tutStep]; return st ? { text: st.text, tool: st.tool } : null; }
     if (this.servedLock) return null;
+    if (this.decorating) return { text: 'Draw on the plate, or tap a shape or topping 🎨' };
     if (!this.panOnBurner) return { text: 'Put the pan back on the burner to heat it 🔥' };
     const pans = this.ings.filter((i) => i.loc === 'pan'), rice = pans.find((i) => i.kind === 'rice');
     const panFoods = this.foodsAt('pan').filter((f) => f.landed), plateFoods = this.foodsAt('plate'), cf = this.carryFood;
@@ -829,6 +911,7 @@ export class Game {
     if (this.carry) return { text: 'Drag onto the plate 🍽️ — or swipe UP to flip ↑' };
     if (cf) return { text: cf.scrambled || cf.folded ? 'Drag onto the plate 🍽️' : cf.mixed ? 'Swipe UP to fold it ↑ — or drag onto the plate 🍽️' : 'Swipe UP to flip ↑ — or drag onto the plate 🍽️' };
     if (this.crack) return this.crack.stage === 'hover' ? { text: 'Tap the egg to crack it 🥚' } : { text: 'Drag sideways to pull the shell apart ↔' };
+    if (S.isSweet(R)) return this._sweetHint(o);
     const eggs = this.eggCount(), moreEggs = R !== 'friedrice' && eggs < want;
     const countTxt = want > 1 ? ` (${Math.min(eggs + 1, want)} of ${want})` : '';
     const miss = this._missing(o);
@@ -888,6 +971,28 @@ export class Game {
     return { text: 'Cooking… watch the guide' };
   }
 
+  _sweetHint(o) {
+    const kind = o.recipe, pancake = kind === 'pancake', name = ING[kind].name.toLowerCase();
+    const pans = this.ings.filter((i) => i.kind === kind && i.loc === 'pan'), plated = this.ings.filter((i) => i.kind === kind && i.loc === 'plate').length, want = o.stack || 1;
+    if (this.pour && this.pour.ing) return { text: 'Keep pouring for a bigger pancake, let go when you like it 🥞' };
+    if (!pans.length && !plated) {
+      if (this.butter.amount === 0) return { text: 'Drag butter 🧈 into the pan', tool: 'butter' };
+      if (this.heat < 1) return { text: 'Turn up the heat with the dial →' };
+      if (this.butter.melt < 0.4 && this.panTemp < 90) return { text: 'Let the butter melt…' };
+    }
+    const flip = pans.find((i) => !i.flips && i.c[1 - i.top] > 0.5);
+    if (flip) return { text: pancake ? 'Bubbles on top! Time to flip: tap ↻ Flip, or flick UP' : `Flip the ${name}: tap ↻ Flip, or flick UP`, tool: 'flip' };
+    if (pans.some((i) => S.ingGuide(i).cls === 'ready')) return { text: 'Ready! Lift it onto the plate with the spatula 🍽️', tool: 'spatula' };
+    if (plated + pans.length < want) {
+      const n = plated + pans.length + 1, tag = want > 1 ? ` (${n} of ${want})` : '';
+      return pancake ? { text: `Press Batter 🥞 and drag it over the pan to pour${tag}`, tool: 'batter' } : { text: `Add a slice of French toast 🥪${tag}`, tool: 'frenchtoast' };
+    }
+    if (pans.length) return { text: pancake ? 'Watch for bubbles on top…' : 'Cooking… watch the chip' };
+    const need = S.artNeeds(o, this.art.used);
+    if (need.length) return { text: `Tap 🎨 Decorate and add ${artLabel(need[0])}`, tool: 'decorate' };
+    return { text: 'Looks great — tap Serve! 🛎️', tool: 'serve' };
+  }
+
   // ---------------- per-frame update ----------------
   update(dt) {
     if (this.paused) return;
@@ -898,6 +1003,7 @@ export class Game {
       a.step && a.step(k, dt);
       if (k >= 1) { this.anims.splice(i, 1); a.done && a.done(); }
     }
+    this._updatePour(dt);
     this.fx.update(dt);
     this.kitchen.updateFlames(this.heat, this.time);
     const turn = this.kitchen.knob.userData.turn;
@@ -972,7 +1078,7 @@ export class Game {
     if (T > 175 && (wet > 0.2 || butterWet > 0.2) && (fc.spatter -= dt) < 0) { fc.spatter = 0.35 - hot * 0.2; this.fx.emit('spatter', _v2.set(_v.x, _v.y + 0.08, _v.z), { count: 2, spread: 1.2 }); }
 
     // orders & tutorial
-    if (this.mode === 'orders' && this.order) this.orderTime += dt;
+    if (this.mode === 'orders' && this.order && !this.decorating) this.orderTime += dt; // art is never rushed
     if (this.mode === 'tutorial') {
       const st = S.TUTORIAL[this.tutStep];
       if (st && st.done(this)) { this.tutStep++; audio.pop(); this.emit('tutorial', this.tutStep); }
@@ -981,4 +1087,4 @@ export class Game {
 }
 const _c1 = new THREE.Color();
 // where each side dish sits on the plate (plate-local x, z)
-const PLATE_SLOT = { bacon: [0.5, 0.44], ham: [-0.52, -0.42], sausage: [0.46, -0.48], cheese: [-0.1, 0.6], rice: [0, 0], bread: [-0.55, 0.36], tomato: [0.66, -0.02] };
+const PLATE_SLOT = { bacon: [0.5, 0.44], ham: [-0.52, -0.42], sausage: [0.46, -0.48], cheese: [-0.1, 0.6], rice: [0, 0], bread: [-0.55, 0.36], tomato: [0.66, -0.02], pancake: [0, 0], frenchtoast: [0, 0] };

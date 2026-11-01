@@ -44,11 +44,15 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 
 - **Order Mode**: 5 customers, each scored out of 100 (recipe 30 · doneness 40 · condition 20 · seasoning 10).
 - **🌙 Cozy Mode**: an order round with no timers and gentler browning.
+- **🌹 Secret Admirer**: a special regular who comes in every shift (favourite: Sunday Short Stack). Every 2 hearts unlocks a love note, read from 💌 Regulars. The letters live in `js/lovenotes.js`: rewrite them in your own words and run `node build.mjs`.
+- **🎨 Decorate**: once something is on the plate, tap Decorate to draw with sauces (ketchup, sriracha, mayo, maple syrup, chocolate, berry coulis), drop toppings (blueberries, strawberry hearts, whipped cream, chives, sprinkles, sugar skulls) or squeeze a ready-made shape. It follows the real shape of the food, shows up in photos, adds +🪙3, and the order clock stops while you decorate.
+- **🥞 Sweet dishes**: press Batter and drag over the pan to pour a pancake (hold longer for a bigger one, or just tap), flip when bubbles appear, and stack them on the plate. French toast works the same way from its tray button. Six new recipes score toppings instead of seasoning.
+- **📔 Scrapbook**: Snap photo pastes the polaroid into an album (up to 60) where you can add captions, share or remove it. Photos are stored in this browser on this device only. The calendar marks every visit; the first visit each day earns a treat from Noxie, with bonuses at 3, 7, 14 and 30 days. Missing one day doesn't break the streak.
 - **Regulars** (💌 on the title screen): 10 named customers with their own lines and favourite dish. Good dishes fill their heart meter (favourites count double); a full meter unlocks a thank-you note.
 - **Tips & 🛍️ Shop**: every dish earns 🪙 tips (half in practice). Spend them on looks only: pans (incl. a midnight-plum pan with a skull-bow charm), plates, spatulas (bat-wing!), Noxie's outfits, a heart-shaped egg ring and a nap cushion.
 - **✨ Today's special**: one dish a day (shown on the title screen) earns +🪙10 when served with 2+ stars.
 - **Stickers**: the Recipe Book shows your best stars and how often you cooked each dish; a 3-star dish earns a 🏅 sticker.
-- **📸 Photo**: after serving, Snap photo frames the plate as a polaroid (on iPad the share sheet can save it to Photos).
+- **📸 Photo**: after serving, Snap photo frames the plate as a polaroid and saves it to the Scrapbook; tap Share photo to send it on (on iPad the share sheet can save it to Photos).
 - **Noxie** the kitchen imp sits on the counter: tap for purrs and hearts; it cheers great dishes and flops at bad ones.
 - **📻 Radio**: tap the radio (or pick in Settings) for Lo-fi Kitchen, Music Box, Rainy Jazz or off.
 - **Settings → Kitchen mood**: 🌙 Midnight Plum (default, dark purple UI), ☀️ Morning, 🌇 Golden Hour, ✨ Cozy Night; **Weather**: rain, snow or clear outside the window.
@@ -58,8 +62,8 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 - **More dishes**: omelette (stir ONE slow circle to beat the egg, let it set, add 🧀/🍖 on top, touch it with the spatula and swipe UP to fold), egg fried rice (add 🍚 rice, crack an egg in, toss both together in circles) and sides: 🥓 bacon, 🍖 ham, 🌭 sausage, 🧀 cheese.
 - **Open fridge** on the back counter holds bacon, ham, sausage, cheese and rice in 3D: tap an item to drop it in the pan, or drag it out. The same five are on the shelf above the tool tray.
 - **Several eggs at once**: crack up to 3 eggs into the pan; each cooks, flips and plates on its own (they sit side by side on the plate). Stir and they beat together into one bigger omelette or scramble.
-- **📖 Recipe Book** (title screen, the 📖 button top-right, or "How to make it" on the order card): 17 dishes with ingredients, step-by-step instructions and a chef's tip. "Practice this in Free Cook" turns any recipe into a scored practice order.
-- **Dishes**: Sunny-Side Up, Eggs for Two, Over-Easy, Soft Scrambled, Cheesy Scramble on Toast, Cheese Omelette, Ham & Cheese Omelette (3 eggs), Egg Fried Rice, Bacon Fried Rice, Bacon & Eggs, Ham & Egg on Toast, the Full Breakfast (2 eggs, bacon, sausage, grilled tomato, toast), Tomato & Egg Scramble, Sunny Eggs & Blistered Tomatoes, Midnight Breakfast, Sausage Fried Rice and Cheese Omelette on Toast.
+- **📖 Recipe Book** (title screen, the 📖 button top-right, or "How to make it" on the order card): 23 dishes with ingredients, step-by-step instructions and a chef's tip. "Practice this in Free Cook" turns any recipe into a scored practice order.
+- **Dishes**: Sunny-Side Up, Eggs for Two, Over-Easy, Soft Scrambled, Cheesy Scramble on Toast, Cheese Omelette, Ham & Cheese Omelette (3 eggs), Egg Fried Rice, Bacon Fried Rice, Bacon & Eggs, Ham & Egg on Toast, the Full Breakfast (2 eggs, bacon, sausage, grilled tomato, toast), Tomato & Egg Scramble, Sunny Eggs & Blistered Tomatoes, Midnight Breakfast, Sausage Fried Rice, Cheese Omelette on Toast, Little Pancake, Sunday Short Stack, Berry Cloud Pancakes, Midnight Pancakes, French Toast and Strawberry French Toast.
 - **Progress chips**: every item cooking in the pan has its own chip (state + progress bar) floating above it; it turns blue and says "Flip it!" when the underside is done. A blue **↻ Flip** button appears in the tool tray and flips whatever is ready; or flick the spatula up over an item, even without lifting it first. Dragging the spatula through bacon/ham/sausage nudges it along, and stirring is measured around the item you are stirring.
 - **Ingredient shelf** (above the tool tray): tap an ingredient to drop it in the pan, or drag it in or onto the plate. Lift anything out with the spatula; swipe UP while carrying it to flip. Scoop rice out over the pan rim.
 - Orders can ask for sides and fillings ("crispy bacon", "cheese inside"); they are scored in Recipe (presence) and Doneness (how well the side is cooked).
@@ -86,6 +90,9 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 | `js/props.js` | pan, plate, carton, eggs, shell halves, butter dish, shakers, spatula |
 | `js/recipes.js` | the recipe book data: every dish, its ingredients, steps and tips (orders are drawn from it) |
 | `js/book.js` | the recipe book overlay UI |
+| `js/art.js` | plate art: sauce beads that follow the food, toppings, ready-made shapes, the batter jug |
+| `js/lovenotes.js` | the Secret Admirer's letters (safe to edit) |
+| `js/scrapbook.js` | daily visits, streak and Noxie's gift; the photo album in IndexedDB |
 | `js/ingredients.js` | bacon, ham, sausage, cheese, rice, toast and tomato: simulation (per-side cooking, browning, tossing) and procedural visuals |
 | `js/food.js` | egg simulation (white / yolk / browning per side) and procedural egg, yolk and curd visuals |
 | `js/game.js` | cooking sim and actions: butter, crack, flip, stir, plate, season, serve; orders |

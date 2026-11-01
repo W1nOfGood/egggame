@@ -3,6 +3,7 @@ import { DONENESS, RECIPE_NAMES } from './config.js';
 import { ING } from './ingredients.js';
 import { BOOK, bookById } from './recipes.js';
 import { pickCustomers, greet } from './customers.js';
+import { artLabel } from './art.js';
 
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -10,11 +11,11 @@ const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) {
 /** Turn a recipe-book entry into an order: picks a doneness and gives the customer some patience. */
 export function orderFrom(entry, cust, opts = {}) {
   const level = opts.level || pick(entry.levels);
-  const n = entry.extras.length + entry.fill.length;
+  const n = entry.extras.length + entry.fill.length + (entry.stack || 0);
   return {
-    id: entry.id, title: entry.title, icon: entry.icon, recipe: entry.recipe, level, eggs: entry.eggs,
+    id: entry.id, title: entry.title, icon: entry.icon, recipe: entry.recipe, level, eggs: entry.eggs, stack: entry.stack || 0, toppings: (entry.toppings || []).slice(),
     salt: entry.salt, pepper: entry.pepper, extras: entry.extras.map((e) => ({ ...e })), fill: entry.fill.slice(),
-    patience: opts.patience || 140 + n * 30 + (entry.eggs - 1) * 20 + (entry.diff - 1) * 15,
+    patience: opts.patience || 140 + n * 30 + Math.max(0, entry.eggs - 1) * 20 + (entry.diff - 1) * 15,
     avatar: cust.avatar || cust[0], name: cust.name || cust[1], custId: cust.id || null, greet: cust.hi ? greet(cust) : '',
   };
 }
@@ -103,14 +104,37 @@ function evalRice(rice, o) {
   return { rec: [rec, rn], don: [Math.round(dPts), dn], cond: [Math.max(0, c), cn.length ? cn.join(', ') : 'Beautiful'], sea: seasonLine(rice, o) };
 }
 
+// ----- pancakes & french toast: a stack of two-sided items, finished with toppings instead of salt and pepper
+export const isSweet = (r) => r === 'pancake' || r === 'frenchtoast';
+export const artNeeds = (o, art) => (o.toppings || []).filter((id) => !(art && art.has(id)));
+function evalSweet(foods, o, ings, art) {
+  const stack = ings.filter((i) => i.kind === o.recipe), want = o.stack || 1, name = RECIPE_NAMES[o.recipe];
+  if (!stack.length) return { rec: [foods.length ? 4 : 0, foods.length ? `Served eggs instead of ${name.toLowerCase()}` : `No ${name.toLowerCase()} on the plate!`], don: [0, '—'], cond: [0, '—'], sea: [0, '—'] };
+  const rec = Math.max(0, 30 - 9 * Math.abs(stack.length - want));
+  const w = windowFor(o.recipe, o.level);
+  const dPts = stack.reduce((a, i) => a + 40 * Math.max(0, 1 - gap(i.done, w) / 0.3), 0) / stack.length;
+  const worst = stack.find((i) => gap(i.done, w) > 0);
+  const dn = !worst ? 'Perfect!' : worst.done < w[0] ? 'A little doughy' : 'A bit overdone';
+  let c = 20; const cn = [];
+  if (stack.some((i) => i.maxBrown > 0.75)) { c -= 14; cn.push('burnt'); } else if (stack.some((i) => i.maxBrown > 0.5)) { c -= 6; cn.push('very brown'); }
+  if (stack.some((i) => !i.flips)) { c -= 8; cn.push('not flipped'); }
+  if (stack.some((i) => i.messy)) { c -= 5; cn.push('flipped too early'); }
+  if (stack.some((i) => i.size < 0.6)) { c -= 4; cn.push('a tiny one'); }
+  const need = o.toppings || [], missing = artNeeds(o, art), buttered = stack.some((i) => i.buttered);
+  const sPts = (buttered ? 3 : 0) + (need.length ? 7 * (need.length - missing.length) / need.length : 7);
+  const sn = need.map((id) => `${artLabel(id)} ${missing.includes(id) ? 'missing' : '✓'}`).concat(buttered ? 'buttery' : 'no butter');
+  return { rec: [rec, `${name}${want > 1 ? ` · ${stack.length} of ${want}` : ''}`], don: [Math.round(dPts), dn], cond: [Math.max(0, c), cn.length ? cn.join(', ') : 'Beautiful'], sea: [Math.round(sPts), sn.join(', ')] };
+}
+
 const uniq = (arr) => [...new Set(arr.filter(Boolean))];
 /** Score a served plate against an order. foods = eggs on the plate, ings = sides on the plate.
  *  Returns {total, stars, lines:[{label, pts, max, note}]} */
-export function evaluate(foods, o, { late = false, ings = [] } = {}) {
+export function evaluate(foods, o, { late = false, ings = [], art = null } = {}) {
   if (!Array.isArray(foods)) foods = foods ? [foods] : [];
   const rice = ings.find((i) => i.kind === 'rice'), want = o.eggs || 1;
   let L;
-  if (o.recipe === 'friedrice') L = rice ? evalRice(rice, o) : { rec: [foods.length ? 4 : 0, foods.length ? 'Served eggs instead of fried rice' : 'No fried rice on the plate!'], don: [0, '—'], cond: [0, '—'], sea: [0, '—'] };
+  if (isSweet(o.recipe)) L = evalSweet(foods, o, ings, art);
+  else if (o.recipe === 'friedrice') L = rice ? evalRice(rice, o) : { rec: [foods.length ? 4 : 0, foods.length ? 'Served eggs instead of fried rice' : 'No fried rice on the plate!'], don: [0, '—'], cond: [0, '—'], sea: [0, '—'] };
   else if (foods.length) {
     const parts = foods.map((f) => evalEgg(f, o));
     const avg = (k) => Math.round(parts.reduce((a, p) => a + p[k][0], 0) / parts.length);
@@ -147,7 +171,7 @@ export function evaluate(foods, o, { late = false, ings = [] } = {}) {
     { label: 'Recipe', max: 30, pts: rec, note: rn },
     { label: 'Doneness', max: 40, pts: don, note: dn },
     { label: 'Condition', max: 20, pts: cond, note: cn },
-    { label: 'Seasoning', max: 10, pts: L.sea[0], note: L.sea[1] },
+    { label: isSweet(o.recipe) ? 'Toppings' : 'Seasoning', max: 10, pts: L.sea[0], note: L.sea[1] },
   ];
   let total = lines.reduce((a, l) => a + l.pts, 0);
   if (late) { total = Math.max(0, total - 5); lines.push({ label: 'Late', max: 0, pts: -5, note: 'The customer waited too long' }); }
@@ -185,8 +209,9 @@ export function describe(foods, ings = []) {
   const counts = new Map();
   for (const f of foods) { const d = describeEgg(f); counts.set(d, (counts.get(d) || 0) + 1); }
   for (const [d, k] of counts) parts.push(k > 1 ? `${k}× ${d}` : d);
-  const sides = ings.filter((i) => i.kind !== 'rice').map((i) => `${i.maxBrown > 0.75 ? 'burnt' : i.done > 0.85 ? 'crispy' : i.done > 0.45 ? 'nicely cooked' : 'lightly cooked'} ${i.spec.name.toLowerCase()}`);
-  if (sides.length) parts.push('with ' + sides.join(' & '));
+  const sides = new Map();
+  for (const i of ings) { if (i.kind === 'rice') continue; const d = `${i.maxBrown > 0.75 ? 'burnt' : i.done > 0.85 ? 'crispy' : i.done > 0.45 ? 'nicely cooked' : 'lightly cooked'} ${i.spec.name.toLowerCase()}`; sides.set(d, (sides.get(d) || 0) + 1); }
+  if (sides.size) parts.push('with ' + [...sides].map(([d, k]) => (k > 1 ? `${k}× ${d}` : d)).join(' & '));
   if (foods.some((f) => f.salt) || (rice && rice.salt)) parts.push('— salted');
   return (parts.join(', ').replace(', with', ' with').replace(', —', ' —') || 'An empty plate') + '.';
 }

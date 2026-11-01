@@ -3,11 +3,14 @@ import * as THREE from 'three';
 import { audio } from './audio.js';
 import { ATMOS_LIST, WEATHER_LIST } from './atmos.js';
 import { RECIPE_NAMES, RECIPE_ICONS } from './config.js';
-import { levelLabel, TUTORIAL, sideLabel, fillLabel, orderFrom, orderTitle } from './scoring.js';
+import { levelLabel, TUTORIAL, sideLabel, fillLabel, orderFrom, orderTitle, isSweet } from './scoring.js';
 import { RecipeBook } from './book.js';
 import { BOOK, bookById } from './recipes.js';
 import { SHOP, SHOP_CATS, DEFAULT_EQUIP, itemById } from './shop.js';
 import { REGULARS, regularById, heartsFor, HEART_MAX } from './customers.js';
+import { LOVE_NOTES } from './lovenotes.js';
+import { SAUCES, TOPPINGS, STAMPS, artLabel } from './art.js';
+import { ALBUM_MAX, albumAll, albumCount, albumDelete, albumPut, calendarHTML, checkIn, streakOf, toJpeg } from './scrapbook.js';
 
 /** Today's special: one dish per calendar day, the same for everyone. */
 export function dailyId(d = new Date()) {
@@ -17,25 +20,26 @@ export function dailyId(d = new Date()) {
 }
 
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const STORE = 'cracksizzle.v1';
 const _v = new THREE.Vector3();
 
 export function loadSettings() {
   const def = { music: 0.45, sfx: 0.8, guide: true, hints: true, quality: (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) ? 'high' : 'auto', atmos: 'plum', weather: 'rain', smooth: '120', radio: 0, best: 0, tutorialDone: false,
-    coins: 30, owned: [], equip: {}, hearts: {}, notes: [], dishes: {} };
+    coins: 30, owned: [], equip: {}, hearts: {}, notes: [], dishes: {}, visits: [], lettersRead: [] };
   try { return Object.assign(def, JSON.parse(localStorage.getItem(STORE) || '{}')); } catch { return def; }
 }
 export function saveSettings(s) { try { localStorage.setItem(STORE, JSON.stringify(s)); } catch { /* private mode */ } }
 
 export class UI {
-  constructor({ game, interactor, settings, onResetCamera, onQuality, onAtmos, onWeather, perf, decor, onEquip, onPhoto }) {
-    this.onEquip = onEquip; this.onPhoto = onPhoto;
+  constructor({ game, interactor, settings, onResetCamera, onQuality, onAtmos, onWeather, perf, decor, onEquip, onPhoto, onDecorate }) {
+    this.onEquip = onEquip; this.onPhoto = onPhoto; this.onDecorate = onDecorate;
     this.game = game; this.ix = interactor; this.s = settings;
     this.onResetCamera = onResetCamera; this.onQuality = onQuality; this.onAtmos = onAtmos; this.onWeather = onWeather; this.perf = perf; this.decor = decor;
     this.hintT = 0; this.lastHint = '';
-    this.screens = ['title', 'pause', 'settings', 'dish', 'results', 'loading', 'nogl', 'shop', 'regulars'];
+    this.screens = ['title', 'pause', 'settings', 'dish', 'results', 'loading', 'nogl', 'shop', 'regulars', 'letter', 'scrapbook', 'photo'];
     this.book = new RecipeBook({ onCook: (id) => this.practice(id), onClose: () => this._afterBook(), progress: () => this.s.dishes, daily: dailyId });
-    this._bindMenus(); this._bindDial(); this._bindTray(); this._bindGame();
+    this._bindMenus(); this._bindDial(); this._bindTray(); this._bindGame(); this._bindArt();
     this._applySettings();
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(true); });
     // Block Safari page pinch-zoom / double-tap zoom gestures over the game
@@ -56,7 +60,16 @@ export class UI {
     click('btn-res-shop', () => this.openShop());
     click('btn-regulars', () => this.openRegulars());
     click('shop-close', () => this.show(this._backTo || 'title'));
-    click('reg-close', () => this.show('title'));
+    click('reg-close', () => { this.show('title'); this._updateBest(); });
+    click('letter-close', () => this.openRegulars());
+    $('reg-list').addEventListener('click', (e) => { const b = e.target.closest('[data-letter]'); if (b) { audio.init(); audio.resume(); audio.pop(); this.openLetter(+b.dataset.letter); } });
+    click('btn-scrapbook', () => this.openScrapbook());
+    click('scrap-close', () => this.show('title'));
+    click('photo-close', () => this.openScrapbook());
+    click('photo-share', () => this._photo && this.sharePhoto(this._photo.url));
+    click('photo-del', () => this.removePhoto());
+    $('photo-caption').addEventListener('change', (e) => { if (this._photo) { this._photo.caption = e.target.value; albumPut(this._photo).catch(() => {}); } });
+    $('scrap-grid').addEventListener('click', (e) => { const b = e.target.closest('[data-photo]'); if (b) { audio.pop(); this.openPhoto(+b.dataset.photo); } });
     click('daily', () => this.practice(dailyId()));
     click('btn-photo', () => this.snapPhoto());
     $('shop-list').addEventListener('click', (e) => { const b = e.target.closest('[data-item]'); if (b) this.shopAction(b.dataset.item); });
@@ -116,12 +129,85 @@ export class UI {
   _updateBest() {
     $('best-score').textContent = this.s.best ? `🏆 Best round: ${this.s.best} / 500` : '';
     const d = bookById(dailyId());
+    this._checkIn();
     $('daily').innerHTML = `<span class="d-kicker">✨ Today’s special</span><span class="d-dish">${d.icon} ${d.title}</span><span class="d-bonus">+🪙10 bonus · tap to cook</span>`;
     this._updateCoins();
   }
   _updateCoins() {
     const c = this.s.coins | 0;
     $('coin-val').textContent = c; $('coin-title').textContent = `🪙${c}`; $('shop-coins').textContent = c;
+  }
+
+  /** Noxie's daily gift: the first visit each calendar day, including a game left open past midnight. */
+  _checkIn() {
+    const gift = checkIn(this.s);
+    if (gift) {
+      saveSettings(this.s);
+      this._gift = gift;
+      if (this.decor) setTimeout(() => this.decor.react(3), 900);
+    }
+    const st = streakOf(this.s.visits), g = this._gift;
+    $('visit-line').innerHTML = `🐾 ${g ? `Noxie saved you a treat: <b>+🪙${g.coins}</b> · ` : ''}${st}-day streak${g && g.milestone ? ' 🎉' : ''}`;
+    $('visit-line').classList.remove('hidden');
+    const unread = LOVE_NOTES.filter((n, i) => this._letterOpen(n) && !this.s.lettersRead.includes(i)).length, badge = $('notes-new');
+    badge.textContent = unread ? `${unread} new` : ''; badge.classList.toggle('hidden', !unread);
+  }
+
+  // ---------- love notes ----------
+  _letterOpen(n) { return (this.s.hearts.admirer || 0) >= n.at; }
+  openLetter(i) {
+    const n = LOVE_NOTES[i]; if (!n || !this._letterOpen(n)) return;
+    if (!this.s.lettersRead.includes(i)) { this.s.lettersRead.push(i); saveSettings(this.s); audio.chime(); }
+    $('letter-title').textContent = n.title; $('letter-text').textContent = n.text;
+    this.show('letter');
+  }
+
+  // ---------- scrapbook ----------
+  async openScrapbook() {
+    const st = streakOf(this.s.visits);
+    $('scrap-cal').innerHTML = calendarHTML(this.s.visits);
+    $('scrap-streak-n').textContent = `🐾 ${st}`;
+    $('scrap-streak-t').textContent = `day${st > 1 ? 's' : ''} in your streak. Come back tomorrow for another treat from Noxie. Missing one day won't break it.`;
+    this.show('scrapbook');
+    const grid = $('scrap-grid');
+    try {
+      this._album = await albumAll();
+      grid.innerHTML = this._album.length ? this._album.map((p, i) => `<button class="scrap-photo" data-photo="${i}" style="--tilt:${((i * 37) % 7) - 3}deg"><img src="${p.url}" alt="${esc(p.title)}">${p.caption ? `<span>${esc(p.caption)}</span>` : ''}</button>`).join('') : '<p class="scrap-empty">No photos yet. After serving a dish, tap 📸 Snap photo and it lands here.</p>';
+    } catch { grid.innerHTML = '<p class="scrap-empty">This browser won\'t let the game save photos here. Private browsing often blocks it.</p>'; }
+  }
+  openPhoto(i) {
+    const p = this._album && this._album[i]; if (!p) return;
+    this._photo = p;
+    $('photo-img').src = p.url; $('photo-caption').value = p.caption || '';
+    $('photo-meta').textContent = `${p.title} · ${new Date(p.at).toLocaleDateString()}`;
+    this.show('photo');
+  }
+  async removePhoto() {
+    if (!this._photo) return;
+    try { await albumDelete(this._photo.id); } catch { /* the album re-reads below and still shows it */ }
+    this._photo = null; this.openScrapbook();
+  }
+
+  // ---------- plate art panel ----------
+  _bindArt() {
+    const art = this.game.art, opt = (d, id, icon, name) => `<button class="art-opt" data-${d}="${id}" title="${name}" aria-label="${name}">${icon}</button>`;
+    $('art-sauces').innerHTML = SAUCES.map((a) => opt('sauce', a.id, a.icon, a.name)).join('');
+    $('art-tops').innerHTML = TOPPINGS.map((a) => opt('top', a.id, a.icon, a.name)).join('');
+    $('art-stamps').innerHTML = STAMPS.map((a) => opt('stamp', a.id, a.icon, a.id)).join('');
+    const mark = () => document.querySelectorAll('#art-panel .art-opt').forEach((b) => b.classList.toggle('on', (art.tool.kind === 'sauce' && b.dataset.sauce === art.tool.id) || (art.tool.kind === 'top' && b.dataset.top === art.tool.id)));
+    $('art-panel').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      audio.pop();
+      if (b.dataset.sauce) art.tool = { kind: 'sauce', id: b.dataset.sauce };
+      else if (b.dataset.top) art.tool = { kind: 'top', id: b.dataset.top };
+      else if (b.dataset.stamp) art.stamp(b.dataset.stamp);
+      else if (b.id === 'art-undo') art.undo();
+      else if (b.id === 'art-clear') { art.clear(); this.game.emit('changed'); }
+      else if (b.id === 'art-done') this.game.endDecorate();
+      mark();
+    });
+    mark();
+    this.game.on('decorate', (on) => { $('hud').classList.toggle('decorating', on); $('art-panel').classList.toggle('hidden', !on); this.onDecorate && this.onDecorate(on); });
   }
 
   // ---------- shop ----------
@@ -155,7 +241,8 @@ export class UI {
     const s = this.s;
     $('reg-list').innerHTML = REGULARS.map((r) => {
       const h = Math.min(HEART_MAX, s.hearts[r.id] || 0), fav = bookById(r.fav);
-      const note = s.notes.includes(r.id) ? `<p class="reg-note">💌 ${r.note}</p>` : '';
+      const note = r.special ? `<div class="letters">${LOVE_NOTES.map((n, i) => { const open = h >= n.at, fresh = open && !s.lettersRead.includes(i); return `<button class="envelope${open ? '' : ' sealed'}${fresh ? ' fresh' : ''}" ${open ? `data-letter="${i}"` : 'disabled'}>${open ? '💌' : '🔒'}<small>${open ? esc(n.title) : `${n.at} hearts`}</small></button>`; }).join('')}</div>`
+        : s.notes.includes(r.id) ? `<p class="reg-note">💌 ${r.note}</p>` : '';
       return `<li class="reg"><span class="reg-ava">${r.avatar}</span><div><b>${r.name}</b><small>${r.blurb} Favourite: ${fav ? fav.icon + ' ' + fav.title : '—'}</small>
         <div class="hearts">${Array.from({ length: HEART_MAX }, (_, k) => `<i>${k < h ? '💗' : '🤍'}</i>`).join('')}</div>${note}</div></li>`;
     }).join('');
@@ -180,20 +267,34 @@ export class UI {
     // regulars' heart meters
     const c = o.custId && regularById(o.custId);
     if (c) {
-      const add = heartsFor(c, r.stars, o.id), now = Math.min(HEART_MAX, (s.hearts[c.id] || 0) + add);
+      const add = heartsFor(c, r.stars, o.id), was = s.hearts[c.id] || 0, now = Math.min(HEART_MAX, was + add);
       s.hearts[c.id] = now;
+      if (c.special) for (const n of LOVE_NOTES) if (was < n.at && now >= n.at) out.push(`<span class="rw note">💌 A new love note: “${esc(n.title)}” (Regulars)</span>`);
       if (add) out.push(`<span class="rw heart">${c.avatar} +${'💗'.repeat(add)} <small>${now}/${HEART_MAX}</small></span>`);
-      if (now >= HEART_MAX && !s.notes.includes(c.id)) { s.notes.push(c.id); out.push(`<span class="rw note">💌 ${c.name} left you a thank-you note! (Regulars)</span>`); }
+      if (!c.special && now >= HEART_MAX && !s.notes.includes(c.id)) { s.notes.push(c.id); out.push(`<span class="rw note">💌 ${c.name} left you a thank-you note! (Regulars)</span>`); }
     }
+    // a little extra for making it pretty
+    if (!g.art.empty) { s.coins = (s.coins | 0) + 3; out.push('<span class="rw coin">+🪙3 <small>plate art</small></span>'); }
     saveSettings(s); this._updateCoins();
     return out.join('');
   }
-  /** Frame the plate, take a picture, and offer it to save or share (the iPad share sheet can save to Photos). */
+  /** Frame the plate, take a picture and paste it in the scrapbook. Tapping again offers it to share or save (the iPad share sheet can save to Photos). */
   async snapPhoto() {
     if (!this.onPhoto) return;
+    if (this._snapUrl) return this.sharePhoto(this._snapUrl);
     audio.pop();
-    const url = this.onPhoto(this._lastDish || {});
+    const info = this._lastDish || {}, url = this._snapUrl = this.onPhoto(info);
     const img = $('dish-photo'); img.src = url; img.classList.remove('hidden');
+    $('btn-photo').textContent = '📤 Share photo';
+    let msg = '📔 Saved to your Scrapbook';
+    try {
+      if (await albumCount() >= ALBUM_MAX) msg = `📔 The Scrapbook is full (${ALBUM_MAX}). Remove a photo to add more`;
+      else await albumPut({ at: Date.now(), title: info.title || 'My dish', stars: info.stars || 0, caption: '', url: await toJpeg(url) });
+    } catch { msg = '📔 Couldn\'t save to the Scrapbook in this browser. Tap Share to keep it'; }
+    $('dish-rewards').insertAdjacentHTML('beforeend', `<span class="rw note">${msg}</span>`);
+  }
+  async sharePhoto(url) {
+    audio.pop();
     try {
       const blob = await (await fetch(url)).blob(), file = new File([blob], 'crack-and-sizzle.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'My dish' }); return; }
@@ -338,10 +439,18 @@ export class UI {
     const g = this.game, f = g.food || g.ings.find((i) => i.kind === 'rice') || null, chips = [];
     const chip = (txt, done, no) => `<span class="chip${done ? ' done' : ''}${no ? ' no' : ''}">${txt}</span>`;
     chips.push(chip('🧈 Butter', g.butter.amount > 0));
+    const sweet = isSweet(o.recipe);
+    if (sweet) {
+      const got = g.ings.filter((i) => i.kind === o.recipe && i.loc === 'plate').length;
+      chips.push(chip(`${o.icon} ${got} of ${o.stack}`, got >= o.stack));
+      (o.toppings || []).forEach((id) => chips.push(chip(artLabel(id), g.art.used.has(id))));
+    }
     (o.extras || []).forEach((e) => chips.push(chip(sideLabel(e), g.plateHas(e.kind))));
     (o.fill || []).forEach((k) => chips.push(chip(fillLabel(k, o.recipe), g.plateHas(k))));
-    chips.push(o.salt ? chip('🧂 Salt', f && f.salt > 0) : chip('No salt', false, true));
-    chips.push(o.pepper ? chip('● Pepper', f && f.pepper > 0) : chip('No pepper', false, true));
+    if (!sweet) {
+      chips.push(o.salt ? chip('🧂 Salt', f && f.salt > 0) : chip('No salt', false, true));
+      chips.push(o.pepper ? chip('● Pepper', f && f.pepper > 0) : chip('No pepper', false, true));
+    }
     const html = chips.join('');
     if (html !== this._extrasHTML) { $('order-extras').innerHTML = html; this._extrasHTML = html; }
   }
@@ -355,6 +464,7 @@ export class UI {
     g.paused = true;
     this._lastDish = { title: d.free ? 'Free Cook' : orderTitle(d.order), stars: d.free ? 0 : d.result.stars };
     $('dish-photo').classList.add('hidden'); $('dish-rewards').innerHTML = '';
+    this._snapUrl = null; $('btn-photo').textContent = '📸 Snap photo';
     if (d.free) {
       $('dish-stars').innerHTML = '🍳';
       $('dish-title').textContent = 'Bon appétit!';

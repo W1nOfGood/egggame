@@ -26,7 +26,11 @@ export const ING = {
   rice:    { name: 'Rice',    icon: '🍚', R: 0.62, rate: 0.7,  brown: 0.7,  levels: {} },
   bread:   { name: 'Toast',   icon: '🍞', R: 0.5,  rate: 1.1,  brown: 1.7,  levels: { toasted: { label: 'golden', w: [0.55, 0.95] } } },
   tomato:  { name: 'Tomato',  icon: '🍅', R: 0.48, rate: 0.85, brown: 1.0,  levels: { grilled: { label: 'grilled', w: [0.5, 0.95] } } },
+  pancake: { name: 'Pancake', icon: '🥞', R: 0.46, rate: 1.0,  brown: 1.0,  levels: { golden: { label: 'golden', w: [0.5, 0.95] } } },
+  frenchtoast: { name: 'French toast', icon: '🥪', R: 0.5, rate: 1.0, brown: 1.3, levels: { golden: { label: 'golden', w: [0.55, 0.95] } } },
 };
+/** Several of these can share the pan and they stack on the plate (value = height of each layer). */
+export const STACKS = { pancake: 0.09, frenchtoast: 0.1 };
 export const isIngredient = (k) => Object.prototype.hasOwnProperty.call(ING, k);
 
 let flakeGeo, pepperGeo, grainGeo, bitGeo, peaGeo, carrotGeo, hamGrain;
@@ -62,6 +66,8 @@ function wobbleShape(r, n, amp, seed) {
 export class Ingredient {
   constructor(kind, opts = {}) {
     this.kind = kind; this.spec = ING[kind]; this.R = this.spec.R;
+    this.size = opts.size ?? 1; // pancakes grow while the batter pours
+    this.messy = false;
     this.group = new THREE.Group(); this.group.name = 'ing-' + kind;
     this.inner = new THREE.Group(); this.group.add(this.inner);
     this.c = [0, 0];        // cook amount of side 0 / 1 (rice: c[0]; cheese uses melt)
@@ -92,7 +98,8 @@ export class Ingredient {
     else if (k === 'ham') this._buildHam();
     else if (k === 'sausage') this._buildSausage();
     else if (k === 'cheese') this._buildCheese();
-    else if (k === 'bread') this._buildBread();
+    else if (k === 'bread' || k === 'frenchtoast') this._buildBread();
+    else if (k === 'pancake') this._buildPancake();
     else if (k === 'tomato') this._buildTomato();
     else this._buildRice();
     flakeGeo = flakeGeo || new THREE.BoxGeometry(0.018, 0.012, 0.018);
@@ -169,6 +176,15 @@ export class Ingredient {
     this.crustMat = new THREE.MeshPhysicalMaterial({ color: '#c88a46', roughness: 0.7 });
     const m = new THREE.Mesh(g, [this.mat, this.crustMat]); m.castShadow = true; m.receiveShadow = true; this.inner.add(m);
   }
+  _buildPancake() {
+    this._tex(128, 128);
+    this.bubbleSeeds = Array.from({ length: 30 }, (_, i) => { const a = hash(i) * 6.28, r = 12 + Math.sqrt(hash(i + 31)) * 44; return [64 + Math.cos(a) * r, 64 + Math.sin(a) * r, 1.6 + hash(i + 61) * 2.2]; });
+    this.mat = new THREE.MeshPhysicalMaterial({ map: this.tex, roughness: 0.62, sheen: 0.5, sheenColor: C('#fff1d0') });
+    this.rimMat = new THREE.MeshPhysicalMaterial({ color: '#f2d9a0', roughness: 0.7 });
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.07, 48), [this.rimMat, this.mat, this.rimMat]);
+    disc.position.y = 0.05; disc.castShadow = true; disc.receiveShadow = true; this.inner.add(disc);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.036, 10, 56), this.rimMat); rim.rotation.x = Math.PI / 2; rim.position.y = 0.05; rim.castShadow = true; this.inner.add(rim);
+  }
   _buildTomato() {
     this._tex(128, 128);
     this.skinMat = new THREE.MeshPhysicalMaterial({ color: '#e63b2e', roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.12 });
@@ -232,7 +248,7 @@ export class Ingredient {
     }
     this.dirty = true;
   }
-  flip() { this.top = 1 - this.top; this.flips++; this.dirty = true; this._lastK = -1; this.refresh(true); }
+  flip() { if (this.kind === 'pancake' && !this.flips && this.c[1 - this.top] < 0.25) this.messy = true; this.top = 1 - this.top; this.flips++; this.dirty = true; this._lastK = -1; this.refresh(true); }
   mergeEgg(raw) { this.egg = true; this.eggRaw = clamp01(raw); this.dirty = true; this.refresh(true); }
 
   addSeasoning(type, n = 5) {
@@ -257,7 +273,8 @@ export class Ingredient {
     else if (k === 'ham') this._refreshHam(ck, br);
     else if (k === 'sausage') this._refreshSausage();
     else if (k === 'cheese') this._refreshCheese();
-    else if (k === 'bread') this._refreshBread(ck, br);
+    else if (k === 'bread' || k === 'frenchtoast') this._refreshBread(ck, br);
+    else if (k === 'pancake') this._refreshPancake(ck, br);
     else if (k === 'tomato') this._refreshTomato();
     else this._refreshRice();
   }
@@ -353,9 +370,31 @@ export class Ingredient {
     if (this.grains.instanceColor) this.grains.instanceColor.needsUpdate = true;
   }
 
+  _refreshPancake(ck, br) {
+    const c = this.ctx, under = clamp01(this.c[1 - this.top]);
+    const s = 0.35 + 0.65 * this.size; this.inner.scale.set(s, 0.5 + 0.5 * this.size, s);
+    // a face that has met the pan is golden in the middle and paler at the edge; a raw one is pale batter
+    const seared = smooth(0.12, 0.65, ck);
+    const edge = C('#f2d694').lerp(C('#d9a355'), seared), mid = C('#f2d694').lerp(C('#a9622a'), seared);
+    const g = c.createRadialGradient(64, 64, 8, 64, 64, 64);
+    g.addColorStop(0, css(mid)); g.addColorStop(0.72, css(mid.clone().lerp(edge, 0.4))); g.addColorStop(1, css(edge));
+    c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+    // bubbles rise through the raw top as the underside cooks: the classic sign it's time to flip
+    if (!this.flips) {
+      const n = Math.round(smooth(0.2, 0.62, under) * this.bubbleSeeds.length);
+      for (let i = 0; i < n; i++) {
+        const [x, y, r] = this.bubbleSeeds[i];
+        c.fillStyle = 'rgba(150,105,55,.55)'; c.beginPath(); c.arc(x, y, r, 0, 6.3); c.fill();
+        c.fillStyle = 'rgba(255,245,215,.8)'; c.beginPath(); c.arc(x - r * 0.25, y - r * 0.25, r * 0.35, 0, 6.3); c.fill();
+      }
+    }
+    if (br > 0.25) { brownRamp(0.4 + br * 0.8, tmp); c.fillStyle = `rgba(${(tmp.r * 255) | 0},${(tmp.g * 255) | 0},${(tmp.b * 255) | 0},${clamp01((br - 0.25) * 2)})`; c.fillRect(0, 0, 128, 128); }
+    this.tex.needsUpdate = true;
+    this.rimMat.color.set('#f6e2ae').lerp(tmp2.set('#e0ae62'), clamp01(this.done * 1.3)).lerp(BROWN, clamp01(this.maxBrown - 0.3));
+  }
   _refreshBread(ck, br) {
-    const c = this.ctx;
-    c.fillStyle = css(C('#fbefd2').lerp(C('#efcf8e'), ck)); c.fillRect(0, 0, 128, 128);
+    const c = this.ctx, eggy = this.kind === 'frenchtoast';
+    c.fillStyle = css(C(eggy ? '#f7dc7c' : '#fbefd2').lerp(C(eggy ? '#e8b84e' : '#efcf8e'), ck)); c.fillRect(0, 0, 128, 128);
     c.globalAlpha = 0.9; c.drawImage(this.poreCanvas, 0, 0); c.globalAlpha = 1;
     if (br > 0.02) {   // toast colour spreads in from the middle, a little uneven
       const g = c.createRadialGradient(64, 60, 6, 64, 64, 80);

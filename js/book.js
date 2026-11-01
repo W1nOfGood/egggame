@@ -1,6 +1,7 @@
 // The recipe book overlay: category tabs, a list of dishes, and a readable recipe page for each one.
 import { BOOK, CATS, bookById } from './recipes.js';
 import { DONENESS } from './config.js';
+import { artLabel } from './art.js';
 import { ING } from './ingredients.js';
 
 const $ = (id) => document.getElementById(id);
@@ -8,6 +9,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const CAT_NAME = Object.fromEntries(CATS);
 const dots = (n) => `<span class="diff" aria-label="Difficulty ${n} of 3">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 const DIFF = ['', 'Easy', 'Medium', 'Chef'];
+const qty = (b) => (!b.stack ? `${b.eggs} egg${b.eggs > 1 ? 's' : ''}` : b.recipe === 'pancake' ? `${b.stack} pancake${b.stack > 1 ? 's' : ''}` : `${b.stack} slices`);
 
 export class RecipeBook {
   /** onCook(id) starts a practice round for that dish; onClose() is called after the book hides. */
@@ -38,7 +40,7 @@ export class RecipeBook {
     $('book-list').innerHTML = list.map((b) => `
       <li class="book-item${b.id === this.sel ? ' on' : ''}" data-id="${b.id}" role="button" tabindex="0">
         <span class="bi-ico">${b.icon}</span>
-        <span class="bi-txt"><b>${esc(b.title)}${b.id === this.daily() ? ' <em class="bi-special">✨ special</em>' : ''}</b><small>${CAT_NAME[b.cat]} · ${b.eggs} egg${b.eggs > 1 ? 's' : ''} · ${b.time}${this._best(b.id) ? ' · ' + '⭐'.repeat(this._best(b.id)) : ''}</small></span>${this._best(b.id) >= 3 ? '<span class="bi-sticker" title="Mastered">🏅</span>' : ''}
+        <span class="bi-txt"><b>${esc(b.title)}${b.id === this.daily() ? ' <em class="bi-special">✨ special</em>' : ''}</b><small>${CAT_NAME[b.cat]} · ${qty(b)} · ${b.time}${this._best(b.id) ? ' · ' + '⭐'.repeat(this._best(b.id)) : ''}</small></span>${this._best(b.id) >= 3 ? '<span class="bi-sticker" title="Mastered">🏅</span>' : ''}
         ${dots(b.diff)}
       </li>`).join('');
     const sel = $('book-list').querySelector('.on'); if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -50,10 +52,12 @@ export class RecipeBook {
     const prog = this.progress()[b.id] || { best: 0, count: 0 };
     const needs = [];
     if (b.recipe !== 'friedrice') needs.push(['🧈', 'Butter']);
-    needs.push(['🥚', `${b.eggs} egg${b.eggs > 1 ? 's' : ''}`]);
+    if (b.eggs) needs.push(['🥚', `${b.eggs} egg${b.eggs > 1 ? 's' : ''}`]);
+    if (b.stack) needs.push([b.recipe === 'pancake' ? '🥞' : '🥪', qty(b)]);
     if (b.recipe === 'friedrice') needs.push(['🍚', 'Rice']);
     for (const e of b.extras) needs.push([ING[e.kind].icon, `${ING[e.kind].name} <em>${ING[e.kind].levels[e.level].label}</em>`]);
     for (const k of b.fill) needs.push([ING[k].icon, `${ING[k].name} <em>${b.recipe === 'omelette' ? 'inside' : b.recipe === 'scrambled' ? 'stirred in' : 'on top'}</em>`]);
+    for (const t of b.toppings || []) { const [icon, ...name] = artLabel(t).split(' '); needs.push([icon, `${name.join(' ')} <em>on top</em>`]); }
     if (b.salt) needs.push(['🧂', 'Salt']);
     if (b.pepper) needs.push(['⚫', 'Pepper']);
     const levels = b.levels.map((l) => DONENESS[b.recipe][l].label);
@@ -69,7 +73,7 @@ export class RecipeBook {
       <div class="bp-facts">
         <div class="fact"><span>Difficulty</span><b>${dots(b.diff)} ${DIFF[b.diff]}</b></div>
         <div class="fact"><span>Time</span><b>⏱ ${b.time}</b></div>
-        <div class="fact"><span>Eggs</span><b>${'🥚'.repeat(b.eggs)}</b></div>
+        <div class="fact"><span>${b.stack ? 'Makes' : 'Eggs'}</span><b>${b.stack ? qty(b) : '🥚'.repeat(b.eggs)}</b></div>
         <div class="fact"><span>Ordered as</span><b>${levels.join(' · ')}</b></div>
         <div class="fact"><span>Your best</span><b>${prog.count ? '⭐'.repeat(prog.best) || '—' : 'Not cooked yet'}${prog.count ? ` <small>· cooked ${prog.count}×</small>` : ''}</b></div>
       </div>
