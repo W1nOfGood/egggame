@@ -103,6 +103,11 @@ export class Interactor {
         g.beginDrink();
         if (g.drinking) this.drinkPress(e, hit.object.userData.drinkItem);
         return;
+      case 'toy': {
+        const toy = hit.object.userData.toy;
+        if (toy.drag) { d.toy = toy; return this.beginMove(toy.obj, 'toy', e, d, hit.point); }
+        d.kind = 'toyTap'; d.toy = toy; break;
+      }
       case 'knob': d.heat0 = g.heat; break;
       case 'crackEgg':
         if (g.crack.stage === 'hover') g.crackTap();
@@ -259,7 +264,7 @@ export class Interactor {
       case 'spatula': this.moveSpatula(e, dt); break;
       case 'shaker': if (d.moved) this.moveShaker(e, dt); break;
       case 'held': this.moveHeld(e, dt); break;
-      case 'move': this.moveProp(e, dt); break;
+      case 'move': if (d.moved || !d.toy) this.moveProp(e, dt); break;
       case 'art': this.setRay(e); g.art.move(this.ray); break;
       case 'pour': this.movePour(e); break;
     }
@@ -362,7 +367,9 @@ export class Interactor {
         }
         break;
       }
+      case 'toyTap': if (!d.moved) d.toy.tap(); break;
       case 'move':
+        if (d.toy && !d.moved) { d.toy.tap(); break; }
         if (d.target) { d.obj.position.x = d.target.x; d.obj.position.z = d.target.z; }
         this.dropProp(d.obj, d.name); break;
     }
@@ -375,10 +382,11 @@ export class Interactor {
     else {
       // lightweight circle collision against other props
       for (let it = 0; it < 8; it++) {
-        for (const [k, other] of Object.entries(p)) {
-          if (other === obj || !RADIUS[k]) continue;
+        const mine = RADIUS[name] ?? (g.obstacles.find((t) => t.obj === obj) || { r: 0.5 }).r;
+        for (const [other, theirs] of [...Object.entries(p).filter(([k]) => RADIUS[k]).map(([k, o]) => [o, RADIUS[k]]), ...g.obstacles.map((t) => [t.obj, t.r])]) {
+          if (other === obj) continue;
           const dx = pos.x - other.position.x, dz = pos.z - other.position.z, dist = Math.hypot(dx, dz) || 0.001;
-          const min = (RADIUS[name] + RADIUS[k]) * 0.85;
+          const min = (mine + theirs) * 0.85;
           if (dist < min) { pos.x += (dx / dist) * (min - dist); pos.z += (dz / dist) * (min - dist); }
         }
         clampToCounter(pos);
@@ -392,7 +400,7 @@ export class Interactor {
     if (this.game.decorating) { this.setRay(e); this.canvas.style.cursor = this.ray.intersectObject(this.game.art.caddy, true).length ? 'pointer' : 'crosshair'; return; }
     const now = performance.now(); if (now - (this._hoverT || 0) < 60) return; this._hoverT = now;
     const hit = this.pick(e);
-    this.canvas.style.cursor = hit ? (hit.kind === 'crackEgg' || hit.kind === 'salt' || hit.kind === 'pepper' || hit.kind === 'artItem' || hit.kind === 'drinkItem' ? 'pointer' : 'grab') : 'default';
+    this.canvas.style.cursor = hit ? (hit.kind === 'crackEgg' || hit.kind === 'salt' || hit.kind === 'pepper' || hit.kind === 'artItem' || hit.kind === 'drinkItem' || hit.kind === 'toy' || hit.kind === 'pet' ? 'pointer' : 'grab') : 'default';
   }
 }
 

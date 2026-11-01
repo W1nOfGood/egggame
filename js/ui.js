@@ -68,7 +68,7 @@ export class UI {
     $('reg-list').addEventListener('click', (e) => { const b = e.target.closest('[data-letter]'); if (b) { audio.init(); audio.resume(); audio.pop(); this.openLetter(+b.dataset.letter); } });
     click('btn-scrapbook', () => this.openScrapbook());
     click('btn-drinks', () => this.bar.openMenu());
-    click('scrap-close', () => this.show('title'));
+    click('scrap-close', () => { if (this.game.mode === 'menu') this.show('title'); else { this.hideScreens(); this.game.paused = false; } });
     click('photo-close', () => this.openScrapbook());
     click('photo-share', () => this._photo && this.sharePhoto(this._photo.url));
     click('photo-del', () => this.removePhoto());
@@ -167,7 +167,13 @@ export class UI {
   }
 
   // ---------- scrapbook ----------
+  /** Tapping the window changes the weather outside it. */
+  nextWeather() {
+    const i = WEATHER_LIST.findIndex(([k]) => k === this.s.weather), [k, n] = WEATHER_LIST[(i + 1) % WEATHER_LIST.length];
+    this.s.weather = k; $('opt-weather').value = k; this.onWeather && this.onWeather(k); this.toast(n);
+  }
   async openScrapbook() {
+    if (this.game.mode !== 'menu') this.game.paused = true; // also reached from the photo frame in the kitchen
     const st = streakOf(this.s.visits);
     $('scrap-cal').innerHTML = calendarHTML(this.s.visits);
     $('scrap-streak-n').textContent = `🐾 ${st}`;
@@ -528,14 +534,14 @@ export class UI {
     $('temp-readout').textContent = `${Math.round(g.panTemp)}°C pan${g.panOnBurner ? '' : ' (off burner)'}`;
     // one progress chip per item cooking in the pan, each floating above its own item
     $('guide-chip').classList.add('hidden');
-    const list = this.s.guide ? g.guideList() : [];
+    const list = this.s.guide || g.drinking ? g.guideList() : [];
     const host = $('guide-chips'), pool = this._chips || (this._chips = []);
     host.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden';
     while (pool.length < list.length) { const el = document.createElement('div'); el.className = 'mini-chip'; el.style.position = 'absolute'; el.style.pointerEvents = 'none'; el.innerHTML = '<span class="tx"></span><div class="meter"><i></i></div>'; host.appendChild(el); pool.push(el); }
     const W = window.innerWidth, Hh = window.innerHeight, placed = [];
     list.forEach((it, i) => {
       const el = pool[i];
-      it.obj.getWorldPosition(_v); _v.y += 0.45; _v.project(camera);
+      it.obj.getWorldPosition(_v); _v.y += it.up ?? 0.45; _v.project(camera);
       const x = (_v.x * 0.5 + 0.5) * W; let y = (-_v.y * 0.5 + 0.5) * Hh;
       for (let n = 0; n < 6; n++) { if (placed.some((q) => Math.abs(q.x - x) < 96 && Math.abs(q.y - y) < 27)) y -= 28; else break; }
       placed.push({ x, y });

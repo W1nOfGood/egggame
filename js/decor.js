@@ -32,7 +32,7 @@ export function buildDecor(scene, mats, fx) {
   const pickables = [];
 
   // ---------------- Noxie: an original little black kitten-imp with bat wings and a pink bow ----------------
-  const nox = new THREE.Group(); nox.position.set(4.85, 0, -1.3); nox.rotation.y = -0.35; nox.scale.setScalar(1.2); root.add(nox);
+  const nox = new THREE.Group(); nox.position.set(5.2, 0, -1.05); nox.rotation.y = -0.35; nox.scale.setScalar(1.2); root.add(nox);
   const body = new THREE.Group(); nox.add(body);
   const torso = mesh(new THREE.SphereGeometry(0.42, 32, 24), M.fur); torso.scale.set(1, 0.88, 0.92); torso.position.y = 0.37; body.add(torso);
   const belly = mesh(new THREE.SphereGeometry(0.25, 24, 16), M.lavender, false); belly.scale.set(1, 0.9, 0.5); belly.position.set(0, 0.33, 0.29); body.add(belly);
@@ -135,7 +135,7 @@ export function buildDecor(scene, mats, fx) {
   const mugHeart = mesh(new THREE.CircleGeometry(0.07, 3), M.pink, false); mugHeart.position.set(0, 0.34, 0.345); mugHeart.rotation.z = -Math.PI / 2; mug.add(mugHeart);
 
   // ---------------- Radio (tap to change the station) ----------------
-  const radio = new THREE.Group(); radio.position.set(-5.75, 0, -2.6); radio.rotation.y = 0.35; root.add(radio);
+  const radio = new THREE.Group(); radio.position.set(-6.45, 0, -2.75); radio.rotation.y = 0.35; root.add(radio);
   const radioBody = mesh(new RoundedBoxGeometry(1.25, 0.72, 0.5, 4, 0.12), M.plum); radioBody.position.y = 0.38; radio.add(radioBody);
   const grille = mesh(new THREE.CircleGeometry(0.24, 28), M.dark, false); grille.position.set(-0.27, 0.38, 0.252); radio.add(grille);
   for (let i = 0; i < 4; i++) { const r = mesh(new THREE.RingGeometry(0.05 + i * 0.05, 0.065 + i * 0.05, 28), M.lavender, false); r.position.set(-0.27, 0.38, 0.254); radio.add(r); }
@@ -149,7 +149,7 @@ export function buildDecor(scene, mats, fx) {
   tag(radio, () => { radioState.bump = 1; radioState.onTap && radioState.onTap(); }); pickables.push(radio);
 
   // ---------------- Star-shaped wall clock with real time ----------------
-  const clock = new THREE.Group(); clock.position.set(2.85, 4.75, -3.62); root.add(clock);
+  const clock = new THREE.Group(); clock.position.set(-5.9, 5.0, -3.62); root.add(clock);
   const star = new THREE.Shape();
   for (let i = 0; i <= 10; i++) { const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.34 : 0.68; const x = Math.cos(a) * r, y = Math.sin(a) * r; i ? star.lineTo(x, y) : star.moveTo(x, y); }
   const starGeo = new THREE.ExtrudeGeometry(star, { depth: 0.08, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 3 });
@@ -161,7 +161,7 @@ export function buildDecor(scene, mats, fx) {
   const pin = mesh(new THREE.CircleGeometry(0.025, 12), M.pink, false); pin.position.z = 0.16; clock.add(pin);
 
   // ---------------- Skull-and-bow cookie jar ----------------
-  const jar = new THREE.Group(); jar.position.set(5.05, 0, -2.6); root.add(jar);
+  const jar = new THREE.Group(); jar.position.set(6.35, 0, 0.45); root.add(jar);
   const jarPts = [new THREE.Vector2(0, 0), new THREE.Vector2(0.4, 0), new THREE.Vector2(0.48, 0.15), new THREE.Vector2(0.5, 0.65), new THREE.Vector2(0.42, 0.8), new THREE.Vector2(0.3, 0.84)];
   jar.add(mesh(new THREE.LatheGeometry(jarPts, 32), M.lavender));
   const lid = mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.1, 32), M.plum); lid.position.y = 0.88; jar.add(lid);
@@ -188,11 +188,14 @@ export function buildDecor(scene, mats, fx) {
   const flame = mesh(flameGeo, M.flame, false); flame.position.y = 0.66; candle.add(flame);
   const halo = mesh(new THREE.PlaneGeometry(0.6, 0.6), new THREE.MeshBasicMaterial({ map: mats.tex.dot, color: new THREE.Color(1.2, 0.7, 0.3), transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }), false);
   halo.position.y = 0.66; candle.add(halo);
-  let candleOn = 1;
+  let candleOn = 1, candleBlown = false, clockSpin = 0, party = 0;
 
   // bake the static decor into a handful of meshes (animated parts are left alone)
   const any = () => true;
-  mergeStatic(root, (o) => o === nox || o === fairy || o === radio || o === flame || o === halo || o === hHand || o === mHand || o === sHand, [], any);
+  mergeStatic(root, (o) => o === nox || o === fairy || o === radio || o === mug || o === pot || o === jar || o === candle || o === clock, [], any);
+  for (const o of [mug, pot, jar]) mergeStatic(o, () => false, [], any);
+  mergeStatic(candle, (o) => o === flame || o === halo, [], any);
+  mergeStatic(clock, (o) => o === hHand || o === mHand || o === sHand, [], any);
   mergeStatic(radio, (o) => o === needle, ['pet'], any);
   // Noxie: merge within each animated part so breathing, blinking and flapping still work
   const hatList = Object.values(hats);
@@ -232,19 +235,21 @@ export function buildDecor(scene, mats, fx) {
     if (frame % 2 === 0 || dt > 1 / 70) {
       for (let i = 0; i < NB; i++) {
         const b = bulbs[i], tw = 0.75 + 0.25 * Math.sin(t * 2.3 + b.seed * 7) + 0.1 * Math.sin(t * 7.1 + b.seed);
-        const k = fairyLevel * tw * 2.6 + 0.25;
+        const k = (fairyLevel || (party > 0 ? 0.4 : 0)) * tw * 2.6 * (party > 0 ? 1 + 2.2 * Math.abs(Math.sin(t * 9 + b.seed * 3)) : 1) + 0.25;
         _tc.copy(b.c).multiplyScalar(k); fairy.setColorAt(i, _tc);
       }
       fairy.instanceColor.needsUpdate = true;
     }
+    party = Math.max(0, party - dt);
     // candle flicker
-    flame.visible = halo.visible = candleOn > 0.02;
+    flame.visible = halo.visible = candleOn > 0.02 && !candleBlown;
     if (flame.visible) { const f = 1 + Math.sin(t * 13) * 0.06 + Math.sin(t * 29) * 0.04; flame.scale.set(1, f, 1); halo.material.opacity = 0.3 * candleOn * f; flame.material.opacity = 0.95 * candleOn; if (camera) halo.quaternion.copy(camera.quaternion); }
     // radio wiggle
     radioState.bump = Math.max(0, radioState.bump - dt * 3); radio.scale.setScalar(1 + Math.sin(radioState.bump * Math.PI) * 0.08);
     needle.position.x = 0.2 + ((radioState.station || 0) % 4) * 0.055;
     // clock shows real time
-    if (frame % 15 === 0) {
+    if (clockSpin > 0) { clockSpin -= dt; hHand.rotation.z -= dt * 3; mHand.rotation.z -= dt * 16; sHand.rotation.z -= dt * 24; }
+    else if (frame % 15 === 0) {
       const d = new Date(), h = d.getHours() % 12, m = d.getMinutes(), sec = d.getSeconds() + d.getMilliseconds() / 1000;
       hHand.rotation.z = -((h + m / 60) / 12) * Math.PI * 2; mHand.rotation.z = -((m + sec / 60) / 60) * Math.PI * 2; sHand.rotation.z = -(sec / 60) * Math.PI * 2;
     }
@@ -252,6 +257,10 @@ export function buildDecor(scene, mats, fx) {
 
   return {
     root, pickables, update,
+    toyParts: { mug, pot, jar, candle, clock },
+    toggleCandle() { candleBlown = !candleBlown; return !candleBlown; },
+    spinClock() { clockSpin = 1.4; },
+    fairyParty() { party = 2.5; fairy.visible = true; },
     setFairy(v) { fairyLevel = v; fairy.visible = v > 0.01; },
     setCandle(v) { candleOn = v; },
     setHat(id) {

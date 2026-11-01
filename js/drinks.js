@@ -41,6 +41,7 @@ export class DrinkCup {
     this.pourer = new THREE.Group(); this.pourer.visible = false; this.group.add(this.pourer);
     this.pourerMat = new THREE.MeshPhysicalMaterial({ roughness: 0.25, clearcoat: 1 });
     const pb = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.13, 0], [0.145, 0.04], [0.145, 0.3], [0.06, 0.42], [0.05, 0.55], [0.001, 0.55]].map(([x, y]) => new THREE.Vector2(x, y)), 16), this.pourerMat); pb.castShadow = true; this.pourer.add(pb);
+    this.chipAnchor = new THREE.Object3D(); this.chipAnchor.position.y = 0.75; this.group.add(this.chipAnchor);
     this.cupId = 'glass'; this.pouring = null; this._t = 0; this._steam = 0;
     this.clear(); this.setCup('glass');
   }
@@ -64,14 +65,18 @@ export class DrinkCup {
     const lift = id === 'teacup' ? 0.03 : 0;
     const profile = [[0.001, 0], [s.rb + wall, 0]];
     if (id === 'skull') profile.push([0.36, 0.28]);
-    profile.push([s.rt + wall, top], [s.rt, top], [s.rb, s.floor], [0.001, s.floor]);
+    profile.push([s.rt + wall, top - 0.012], [s.rt + wall * 0.75, top - 0.002], [s.rt + wall * 0.25, top - 0.002], [s.rt, top - 0.012], [s.rb + 0.01, s.floor + 0.015], [s.rb - 0.02, s.floor], [0.001, s.floor]);
     const see = id === 'glass' || id === 'jar', mat = see ? G.glass : id === 'mug' ? G.mug : id === 'skull' ? G.bone : G.china;
-    const cup = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), 32), mat);
+    const cup = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), 48), mat);
     cup.position.y = lift; cup.castShadow = !see; cup.renderOrder = see ? 3 : 0; this.body.add(cup);
     const add = (geo, m, x, y, z, sx, sy = sx, sz = sx) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); this.body.add(o); return o; };
-    if (id === 'mug' || id === 'teacup') { const r = id === 'mug' ? 0.15 : 0.09, o = add(G.ring, mat, s.rt + r * 0.8, top * 0.55, 0, r, r, r * 1.6); o.castShadow = true; }
+    if (id === 'mug' || id === 'teacup') { // a rounded handle joined to the wall
+      const r = id === 'mug' ? 0.15 : 0.085, h = new THREE.Mesh(new THREE.TorusGeometry(r, id === 'mug' ? 0.03 : 0.02, 10, 22, Math.PI), mat);
+      h.rotation.z = -Math.PI / 2; h.position.set(s.rt + wall - 0.01, top * (id === 'mug' ? 0.52 : 0.6) + lift, 0); h.scale.set(1, 1, 1); h.castShadow = true; this.body.add(h);
+    }
     if (id === 'teacup') add(G.disc, G.china, 0, 0.015, 0, 0.5, 0.03, 0.5);
     if (id === 'jar') add(G.ring, G.bone, 0, top - 0.02, 0, s.rt + 0.02, s.rt + 0.02, 0.5).rotation.x = Math.PI / 2;
+    if (id === 'glass' || id === 'jar') add(G.ring, G.glass, 0, top - 0.004, 0, s.rt + wall * 0.5, s.rt + wall * 0.5, 0.25).rotation.x = Math.PI / 2;
     if (id === 'skull') {
       for (const x of [-0.12, 0.12]) add(G.sphere, G.dark, x, 0.34, 0.3, 0.07, 0.085, 0.04);
       add(G.sphere, G.dark, 0, 0.23, 0.335, 0.025, 0.04, 0.02);

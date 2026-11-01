@@ -79,7 +79,7 @@ function topping(id) {
   return root;
 }
 
-const CADDY = { x: 2.95, z: 2.45 };
+const CADDY = { x: 2.95, z: 2.62 };
 const MAX_BEADS = 2400, SPACING = 0.018, BEAD_R = 0.042;
 const _d = new THREE.Object3D(), _col = new THREE.Color(), _o = new THREE.Vector3(), _down = new THREE.Vector3(0, -1, 0), _p = new THREE.Vector3();
 const shown = (o) => { for (; o; o = o.parent) if (o.visible === false) return false; return true; };
@@ -123,7 +123,7 @@ export class PlateArt {
     const towel = new THREE.MeshPhysicalMaterial({ color: '#c9b6e4', roughness: 0.9 });
     [0.02, 0.055, 0.09].forEach((y, k) => { const f = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.035, 0.26, 2, 0.015), towel); f.position.set(k * 0.008, y, 0); f.castShadow = true; cloth.add(f); });
     item('cloth', 'cloth', cloth, X(5), 0.4, 0.36, 0.2);
-    g.kitchen.pickables.push(caddy);
+    g.kitchen.pickables.push(caddy); g.obstacles.push({ obj: caddy, r: 1.3 });
   }
   /** A press on something in the caddy. */
   pickItem(it) {
@@ -282,8 +282,10 @@ export class PlateArt {
 function makeBottle(color) {
   const g = new THREE.Group();
   const body = new THREE.MeshPhysicalMaterial({ color, roughness: 0.22, clearcoat: 1 });
-  const pts = [[0.001, 0], [0.12, 0], [0.135, 0.03], [0.135, 0.36], [0.1, 0.44], [0.001, 0.46]].map(([x, y]) => new THREE.Vector2(x, y));
-  const b = new THREE.Mesh(new THREE.LatheGeometry(pts, 18), body); b.castShadow = true; g.add(b);
+  const pts = new THREE.SplineCurve([[0.001, 0], [0.11, 0.003], [0.133, 0.03], [0.137, 0.2], [0.13, 0.34], [0.09, 0.43], [0.045, 0.46]].map(([x, y]) => new THREE.Vector2(x, y))).getPoints(20);
+  const b = new THREE.Mesh(new THREE.LatheGeometry(pts, 24), body); b.castShadow = true; g.add(b);
+  const paper = new THREE.Mesh(new THREE.CylinderGeometry(0.139, 0.139, 0.15, 24, 1, true), new THREE.MeshPhysicalMaterial({ color: '#fff4e6', roughness: 0.6 })); paper.position.y = 0.17; g.add(paper);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.05, 16), new THREE.MeshPhysicalMaterial({ color: '#fff4e6', roughness: 0.35 })); cap.position.y = 0.46; g.add(cap);
   const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.05, 0.16, 12), new THREE.MeshPhysicalMaterial({ color: '#fff4e6', roughness: 0.35 })); nozzle.position.y = 0.53; nozzle.castShadow = true; g.add(nozzle);
   return g;
 }

@@ -31,18 +31,17 @@ export class DrinkBar {
     const c = g.drink, want = drinkById(this.wantedId), made = c.made(), r = c.result(this.wantedId);
     const seg = (id, w) => `<i style="width:${w.toFixed(1)}%;background:${LIQUIDS[id].color}"></i>`;
     const now = Object.entries(c.amounts).map(([k, v]) => seg(k, v * 100)).join('');
-    const target = want ? Object.entries(want.mix).map(([k, v]) => seg(k, v * 90)).join('') : '';
     const status = c.pouring ? `Pouring ${LIQUIDS[c.pouring].name}…`
       : !c.ready ? 'Press and hold a bottle on the shelf'
+        : want && made !== want ? 'Keep going, follow the chips ✨'
         : want ? (r.stars ? `${'⭐'.repeat(r.stars)} ${esc(r.note)}` : esc(r.note))
           : made ? `${made.icon} That's ${esc(aDrink(made))}!` : 'A house special, all your own ✨';
     const goal = want ? `<b>${want.icon} ${esc(want.name)}</b><small>${recipeText(want)}</small>` : '<b>🍹 Drink Shelf</b><small>Mix anything. Tap the board for the menu.</small>';
-    const html = `${goal}|${now}|${target}|${status}|${c.extras}|${c.cupId}|${want && want.id}`;
+    const html = `${goal}|${now}|${status}|${c.extras}|${c.cupId}|${want && want.id}`;
     if (html === this._html) return;
     this._html = html;
     $('dk-goal').innerHTML = goal;
     $('dk-now').innerHTML = now;
-    $('dk-target').innerHTML = target; $('dk-target').classList.toggle('hidden', !want);
     $('dk-status').innerHTML = status;
     g.shelf.mark(want, c);
   }

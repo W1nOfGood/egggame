@@ -32,11 +32,14 @@ export function buildKitchen(scene, mats, q) {
   top.position.set(0, -0.21, -0.05); root.add(top);
   const cab = mesh(new THREE.BoxGeometry(16.6, 3.8, 7), mats.cabinetDark);
   cab.position.set(0, -2.32, -0.3); root.add(cab);
-  for (let i = 0; i < 6; i++) { // cabinet doors with brass pulls
+  const toyParts = { doors: [], jars: [], herbs: [] };
+  for (let i = 0; i < 6; i++) { // cabinet doors with brass pulls, each on its own hinge
+    const side = i % 2 ? -1 : 1, hinge = new THREE.Group();
+    hinge.position.set(-6.9 + i * 2.76 - side * 1.3, 0, 3.24); hinge.userData.side = -side; root.add(hinge); toyParts.doors.push(hinge);
     const door = mesh(new RoundedBoxGeometry(2.6, 3.3, 0.16, 3, 0.07), mats.cabinet);
-    door.position.set(-6.9 + i * 2.76, -2.3, 3.24); root.add(door);
+    door.position.set(side * 1.3, -2.3, 0); hinge.add(door);
     const pull = mesh(new THREE.CapsuleGeometry(0.05, 0.55, 4, 8), mats.brass);
-    pull.position.set(-6.9 + i * 2.76 + (i % 2 ? -1 : 1) * 0.95, -1.4, 3.37); root.add(pull);
+    pull.position.set(side * 2.25, -1.4, 0.13); hinge.add(pull);
   }
   const toe = mesh(new THREE.BoxGeometry(16.6, 0.3, 0.2), mats.counterEdge); toe.position.set(0, -4.05, 3.0); root.add(toe);
 
@@ -47,7 +50,7 @@ export function buildKitchen(scene, mats, q) {
   for (const [w, h, x, y] of frameParts) { const f = mesh(new RoundedBoxGeometry(w, h, 0.2, 2, 0.05), mats.windowFrame); f.position.set(x, y, 0.05); win.add(f); }
   const sill = mesh(new RoundedBoxGeometry(6.2, 0.16, 0.6, 3, 0.06), mats.windowFrame, { cast: true }); sill.position.set(0, -1.85, 0.25); win.add(sill);
   // little pots on the sill
-  for (let i = 0; i < 3; i++) win.add(pottedHerb(mats, -1.8 + i * 1.8, -1.77, 0.3, 0.42 + (i % 2) * 0.1, i));
+  for (let i = 0; i < 3; i++) { const h = pottedHerb(mats, -1.8 + i * 1.8, -1.77, 0.3, 0.42 + (i % 2) * 0.1, i); win.add(h); toyParts.herbs.push(h); }
   // hanging light over cooktop
   const lamp = new THREE.Group(); lamp.position.set(-0.6, 10.6, -0.8); root.add(lamp);
   const cord = mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.5, 6), mats.castIron); cord.position.y = 1.25; lamp.add(cord);
@@ -61,7 +64,7 @@ export function buildKitchen(scene, mats, q) {
   const plank = mesh(new RoundedBoxGeometry(4.2, 0.16, 0.7, 3, 0.05), mats.wood, { cast: true, receive: true }); shelf.add(plank);
   for (const x of [-1.6, 1.6]) { const br = mesh(new THREE.BoxGeometry(0.1, 0.5, 0.5), mats.brass); br.position.set(x, -0.3, -0.05); shelf.add(br); }
   const jarFills = [mats.pasta, mats.beans, mats.salt];
-  for (let i = 0; i < 3; i++) shelf.add(jar(mats, -1.3 + i * 1.25, 0.08, 0.05, 0.38 + (i === 1 ? 0.1 : 0), 0.95 - i * 0.12, jarFills[i]));
+  for (let i = 0; i < 3; i++) { const j = jar(mats, -1.3 + i * 1.25, 0.08, 0.05, 0.38 + (i === 1 ? 0.1 : 0), 0.95 - i * 0.12, jarFills[i]); shelf.add(j); toyParts.jars.push(j); }
 
   // ---------- Cooktop ----------
   const cw = COOKTOP.x1 - COOKTOP.x0, cd = COOKTOP.z1 - COOKTOP.z0;
@@ -115,7 +118,7 @@ export function buildKitchen(scene, mats, q) {
   // Knobs (front of cooktop)
   const knob = makeKnob(mats); knob.position.set(KNOB_POS.x, COOKTOP.top, KNOB_POS.z); root.add(knob);
   const knob2 = makeKnob(mats); knob2.position.set(KNOB_POS.x, COOKTOP.top, KNOB_POS.z - 1.0); knob2.scale.setScalar(0.8); root.add(knob2);
-  knob2.traverse((c) => { c.userData = {}; });
+  knob2.traverse((c) => { c.userData = {}; }); toyParts.knob2 = knob2;
   // heat tick marks around the main knob
   const ticks = new THREE.Group(); ticks.position.copy(knob.position); ticks.position.y += 0.005; root.add(ticks);
   for (let i = 0; i <= 10; i++) {
@@ -125,11 +128,12 @@ export function buildKitchen(scene, mats, q) {
   }
 
   // ---------- Decor on counter ----------
-  root.add(utensilCrock(mats, -6.45, -1.15));
-  root.add(bigPlant(mats, 6.4, -2.5));
-  const board = mesh(new RoundedBoxGeometry(2.4, 3.0, 0.14, 4, 0.06), mats.wood, { cast: true });
-  board.position.set(-3.6, 1.45, -3.45); board.rotation.x = -0.12; root.add(board);
-  const boardHole = mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 20), mats.counterEdge); boardHole.position.set(-3.6, 2.7, -3.36); boardHole.rotation.x = -0.12; root.add(boardHole);
+  toyParts.crock = utensilCrock(mats, -6.7, -1.1); root.add(toyParts.crock);
+  toyParts.plant = bigPlant(mats, 7.0, -1.4); root.add(toyParts.plant);
+  toyParts.board = new THREE.Group(); toyParts.board.position.set(-4.35, 1.3, -3.45); toyParts.board.rotation.x = -0.12; toyParts.board.scale.setScalar(0.85); root.add(toyParts.board);
+  toyParts.board.add(mesh(new RoundedBoxGeometry(2.4, 3.0, 0.14, 4, 0.06), mats.wood, { cast: true }));
+  const boardHole = mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 20), mats.counterEdge); boardHole.position.set(0, 1.25, 0.09); toyParts.board.add(boardHole);
+  toyParts.lamp = lamp;
 
   // ---------- Animation hooks ----------
   const dummy = new THREE.Object3D();
@@ -159,8 +163,11 @@ export function buildKitchen(scene, mats, q) {
 
   // theme presets recolour these at runtime, so they keep their own materials; everything else can bake its colour
   const live = new Set([mats.wall, mats.floor, mats.cabinet, mats.cabinetDark, mats.counterEdge, mats.windowFrame, mats.tile, mats.counter, shadeMat, sky.material]);
-  mergeStatic(root, (o) => o === knob, [], (m) => !live.has(m));
-  return { root, knob, updateFlames, sky, shadeMat, pickables: [] };
+  // anything that moves when touched stays out of the big merge, and is merged on its own instead
+  const movers = [toyParts.crock, toyParts.plant, toyParts.board, toyParts.lamp, toyParts.knob2, ...toyParts.doors, ...toyParts.jars, ...toyParts.herbs];
+  mergeStatic(root, (o) => o === knob || o === sky || movers.includes(o), [], (m) => !live.has(m));
+  for (const o of movers) mergeStatic(o, () => false, [], (m) => !live.has(m));
+  return { root, knob, updateFlames, sky, shadeMat, pickables: [], toyParts };
 }
 
 function roundedRectPath(p, x, y, w, h, r) {

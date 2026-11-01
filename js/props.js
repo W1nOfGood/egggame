@@ -268,7 +268,8 @@ export function makeFridge(mats) {
   for (const x of [-0.8, 0.8]) { const f = mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.07, 12), rubber, false); f.position.set(x, -0.03, -0.3); g.add(f); }
 
   // door (swung wide open to the left): outer shell, inner liner, bins with bottles
-  const pivot = new THREE.Group(); pivot.position.set(-W / 2, 0, D / 2); pivot.rotation.y = -2.85; g.add(pivot);
+  const pivot = new THREE.Group(); pivot.position.set(-W / 2, 0, D / 2); pivot.rotation.y = -3.1; g.add(pivot);
+  g.userData.door = pivot;
   rb(W, H, 0.11, 0.05, shell, W / 2, H / 2, 0.055, pivot);
   rb(W - 0.14, H - 0.14, 0.04, 0.03, liner, W / 2, H / 2, -0.03, pivot, false);
   rb(W - 0.06, 0.04, 0.06, 0.015, rubber, W / 2, H - 0.06, -0.03, pivot, false); rb(W - 0.06, 0.04, 0.06, 0.015, rubber, W / 2, 0.07, -0.03, pivot, false);
@@ -416,9 +417,10 @@ export function buildProps(scene, mats) {
   const salt = makeSaltShaker(mats); salt.position.set(HOME.salt.x, 0, HOME.salt.z); scene.add(salt);
   const pepper = makePepperMill(mats); pepper.position.set(HOME.pepper.x, 0, HOME.pepper.z); scene.add(pepper);
   const spatula = makeSpatula(mats); spatula.position.set(HOME.spatula.x, 0.0, HOME.spatula.z); spatula.rotation.y = 0.5; scene.add(spatula);
-  const fridge = makeFridge(mats); fridge.position.set(1.0, 0, -2.6); fridge.scale.setScalar(1.3); scene.add(fridge);
+  const fridge = makeFridge(mats); fridge.position.set(1.0, 0, -2.95); fridge.scale.setScalar(1.3); scene.add(fridge);
   const any = () => true;
-  mergeStatic(fridge, (o) => o.userData.interact === 'fridgeItem', ['fridge'], any);
+  mergeStatic(fridge, (o) => o.userData.interact === 'fridgeItem' || o === fridge.userData.door, ['fridge'], any);
+  mergeStatic(fridge.userData.door, () => false, ['fridge'], any); // swings when tapped
   // each fridge item becomes one mesh per material, still tagged so it can be tapped
   const fridgeItems = [];
   fridge.traverse((o) => { if (o.userData.interact === 'fridgeItem' && o.parent && o.parent.userData.interact !== 'fridgeItem' && (!o.isMesh || o.children.length)) fridgeItems.push(o); });

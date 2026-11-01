@@ -7,12 +7,12 @@ export const KNOB_POS = { x: 1.25, z: 1.45 };
 
 export const HOME = {
   pan: { x: BURNER.x, z: BURNER.z },
-  plate: { x: 3.25, z: 0.55 },
+  plate: { x: 3.25, z: 0.25 },
   carton: { x: -4.55, z: -0.75 },
   butter: { x: -4.4, z: 1.75 },
   salt: { x: 2.75, z: -2.15 },
   pepper: { x: 3.7, z: -2.2 },
-  spatula: { x: 4.55, z: 2.15 },
+  spatula: { x: 5.0, z: 2.35 },
 };
 
 export const PAN = { floorY: 0.06, innerR: 1.0, rimR: 1.24, height: 0.34, snap: 0.8 };

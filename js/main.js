@@ -14,6 +14,7 @@ import { Post } from './post.js';
 import { Atmos } from './atmos.js';
 import { buildDecor } from './decor.js';
 import { equipAll } from './shop.js';
+import { buildToys } from './toys.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('scene');
@@ -206,6 +207,7 @@ function boot() {
   decor.radio.onTap = () => ui.setRadio(audio.station + 1);
   game.on('served', (d) => { const st = d && d.result ? d.result.stars : 3; setTimeout(() => decor.react(st), 700); });
   game.settings = settings;
+  buildToys({ game, kitchen, decor, scene, ctx: { openBook: () => ui.openBook(), openScrapbook: () => ui.openScrapbook(), nextWeather: () => ui.nextWeather() } });
 
   // ---------- plate art camera ----------
   // Glide in above the plate while decorating, and back to wherever the player was afterwards.

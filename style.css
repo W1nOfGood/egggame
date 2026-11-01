@@ -576,7 +576,7 @@ html, body { overflow: hidden; }
 .dk-goal { flex: 1; min-width: 0; text-align: left; font-size: 15px; }
 .dk-goal small { display: block; font-size: 12px; color: var(--ink-soft); line-height: 1.25; margin-top: 1px; }
 .dk-bars { display: grid; gap: 3px; }
-.dk-bar { position: relative; height: 14px; border-radius: 8px; overflow: hidden; background: rgba(180, 140, 255, .15); }
+.dk-bar { position: relative; height: 16px; border-radius: 8px; overflow: hidden; background: rgba(180, 140, 255, .15); }
 .dk-fill { display: flex; height: 100%; }
 .dk-fill i { display: block; height: 100%; }
 .dk-zone { position: absolute; top: 0; bottom: 0; left: 75%; right: 0; border-left: 2px dashed rgba(255, 216, 107, .9); background: rgba(255, 216, 107, .14); pointer-events: none; }
@@ -598,3 +598,4 @@ html, body { overflow: hidden; }
 .drink-card b { font-size: 12px; line-height: 1.15; }
 .drink-card small { font-size: 10px; line-height: 1.2; }
 @media (max-width: 560px) { .drinks-detail { flex-wrap: wrap; } .drinks-detail .big-btn { width: 100%; } }
+#hud.drinking #guide-chips { display: block; }

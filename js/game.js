@@ -9,7 +9,7 @@ import { Ingredient, ING, STACKS } from './ingredients.js';
 import { PlateArt, makeJug, artLabel } from './art.js';
 import { DrinkCup } from './drinks.js';
 import { DrinkShelf } from './drinkshelf.js';
-import { CUPS, drinkById } from './drinklist.js';
+import { CUPS, EXTRAS, LIQUIDS, drinkById } from './drinklist.js';
 import * as S from './scoring.js';
 import { audio } from './audio.js';
 
@@ -23,6 +23,7 @@ export class Game {
     Object.assign(this, world); // scene, camera, mats, props, kitchen, fx
     this.listeners = {};
     this.anims = [];
+    this.obstacles = []; // things that props bump into when set down, besides the props themselves
     this.mode = 'menu'; this.paused = false; this.time = 0;
     this.heat = 0; this.panTemp = ROOM_TEMP;
     this.butter = { amount: 0, melt: 0, browned: 0, pats: [] };
@@ -668,6 +669,22 @@ export class Game {
   }
 
   // ---------------- drinks ----------------
+  /** A progress chip over the cup and over everything the recipe still needs, like the ones over food in the pan. */
+  _drinkChips() {
+    const c = this.drink, want = drinkById((this.order && this.order.drink) || this.drinkGoal), out = [], pct = Math.round(c.fill * 100);
+    if (c.fill || !want) out.push({ key: 'cup', cls: c.fill >= 0.75 ? 'ready' : 'cooking', label: c.fill >= 0.75 ? `🥤 Full! ${pct}%` : `🥤 Fill ${pct}%`, p: Math.min(1, c.fill / 0.9), obj: c.chipAnchor, up: 0 });
+    if (!want) return out;
+    for (const [k, share] of Object.entries(want.mix)) {
+      const goal = share * 0.9, have = c.amounts[k] || 0, l = LIQUIDS[k], close = Math.abs(have - goal) <= 0.07;
+      const pouring = c.pouring === k;
+      out.push({ key: k, cls: have > goal + 0.09 ? 'burning' : close ? 'ready' : 'cooking', label: have > goal + 0.09 ? `${l.icon} Too much!` : close ? `${l.icon} Stop! ✓` : pouring ? `${l.icon} Keep pouring…` : `${l.icon} Pour ${Math.round(goal * 100)}%`, p: Math.min(1, have / goal), obj: this.shelf.objs['liquid:' + k], up: 0.3 });
+    }
+    for (const k of want.extras) {
+      const on = c.extras.includes(k), x = EXTRAS[k];
+      out.push({ key: k, cls: on ? 'ready' : 'flip', label: on ? `${x.icon} Added ✓` : `${x.icon} Tap to add`, p: on ? 1 : 0, obj: this.shelf.objs['extra:' + k], up: 0.22 });
+    }
+    return out;
+  }
   beginDrink() {
     if (this.busy || this.drinking || this.decorating || this.servedLock) return;
     this.drinking = true; this.drink.group.visible = true;
@@ -715,6 +732,7 @@ export class Game {
   }
   /** One entry per thing cooking: [{key, cls, label, p, obj}] for the progress chips. */
   guideList() {
+    if (this.drinking) return this._drinkChips();
     const o = this.target(), out = [], panEggs = this.foods.filter((f) => f.loc === 'pan' || f.loc === 'spatula');
     panEggs.forEach((f, n) => {
       const st = S.guideState(f, o); let { cls, label } = st;

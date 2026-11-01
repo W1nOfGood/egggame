@@ -121,6 +121,8 @@ export const audio = {
   knob() { noiseHit({ freq: 3000, q: 8, peak: 0.12, decay: 0.015 }); },
   purr() { for (let i = 0; i < 6; i++) noiseHit({ freq: 180, q: 2, type: 'lowpass', peak: 0.25, attack: 0.04, decay: 0.12, when: i * 0.13, rate: 0.5 }); tone({ freq: 880, type: 'sine', peak: 0.08, decay: 0.3, when: 0.1, slide: 1.3 }); },
   pop() { tone({ freq: 660, type: 'sine', peak: 0.22, decay: 0.09, slide: 1.6 }); },
+  whistle() { tone({ freq: 1200, peak: 0.09, attack: 0.25, decay: 0.55, slide: 1.25 }); tone({ freq: 1800, peak: 0.05, attack: 0.3, decay: 0.45, slide: 1.2 }); },
+  boo() { tone({ freq: 420, type: 'sine', peak: 0.18, attack: 0.1, decay: 0.55, slide: 0.55 }); tone({ freq: 630, type: 'sine', peak: 0.07, attack: 0.12, decay: 0.45, slide: 0.6 }); },
   pour() { noiseHit({ freq: 900 + Math.random() * 500, q: 3, peak: 0.1, attack: 0.02, decay: 0.09, rate: 0.7 }); },
   pick() { tone({ freq: 520, type: 'triangle', peak: 0.12, decay: 0.07, slide: 1.3 }); },
   ding() {
