@@ -66,8 +66,17 @@ export class DrinkShelf {
     const bucket = new THREE.Group(); bucket.add(lathe([[0.001, 0], [0.12, 0], [0.16, 0.3], [0.135, 0.3], [0.105, 0.03], [0.001, 0.03]], M('#7fd1b9')));
     addItem('tool', 'dump', bucket, tx + 0.44, 3, 0.4, 0.42, '🗑️');
     const board = new THREE.Group();
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.5, 0.03), wood); frame.position.y = 0.26; frame.rotation.x = -0.12; board.add(frame);
-    addItem('tool', 'menu', board, tx + 1.02, 3, 0.66, 0.55, '📜');
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.52, 0.03), wood); frame.position.y = 0.27; board.add(frame);
+    // a chalkboard that says what it does
+    const cc = document.createElement('canvas'); cc.width = 256; cc.height = 192; const x = cc.getContext('2d');
+    x.fillStyle = '#2b2233'; x.fillRect(0, 0, 256, 192); x.fillStyle = '#fff8ec'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = 'bold 44px Fredoka, ui-rounded, system-ui, sans-serif'; x.fillText('RECIPES', 128, 60);
+    x.font = '26px Fredoka, ui-rounded, system-ui, sans-serif'; x.fillStyle = '#ffc93c'; x.fillText('tap to choose', 128, 112);
+    x.font = '34px system-ui'; x.fillText('🍹 ☕ 🧋', 128, 156);
+    const chalk = new THREE.CanvasTexture(cc); chalk.colorSpace = THREE.SRGBColorSpace; chalk.anisotropy = 4;
+    const slate = new THREE.Mesh(new THREE.PlaneGeometry(0.59, 0.45), new THREE.MeshStandardMaterial({ map: chalk, roughness: 0.85 })); slate.position.set(0, 0.27, 0.017); board.add(slate);
+    board.rotation.x = -0.12;
+    addItem('tool', 'menu', board, tx + 1.02, 3, 0.66, 0.55, null);
     // front lip and little brackets, so it reads as built furniture
     for (const y of TIERS) {
       const lip = new THREE.Mesh(new THREE.BoxGeometry(WIDTH - 0.08, 0.075, 0.03), wood); lip.position.set(0, y + 0.012, 0.215); group.add(lip);

@@ -599,3 +599,6 @@ html, body { overflow: hidden; }
 .drink-card small { font-size: 10px; line-height: 1.2; }
 @media (max-width: 560px) { .drinks-detail { flex-wrap: wrap; } .drinks-detail .big-btn { width: 100%; } }
 #hud.drinking #guide-chips { display: block; }
+.mini-chip.tag .meter { display: none; }
+.mini-chip.tag { background: #fff4e6; color: #3a2758; border-color: #ffc93c; font-weight: 700; }
+.dk-status { line-height: 1.3; }

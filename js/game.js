@@ -672,6 +672,11 @@ export class Game {
   /** A progress chip over the cup and over everything the recipe still needs, like the ones over food in the pan. */
   _drinkChips() {
     const c = this.drink, want = drinkById((this.order && this.order.drink) || this.drinkGoal), out = [], pct = Math.round(c.fill * 100);
+    // little name tags, so the top shelf explains itself
+    const tag = (key, label, obj) => out.push({ key, cls: 'tag', label, p: 0, obj, up: 0.3 }), O = this.shelf.objs;
+    tag('menu', want ? '📜 Change recipe' : '📜 Recipes: start here', O['tool:menu']);
+    if (!c.ready) tag('cups', '☝️ Pick a cup', O['cup:teacup']);
+    else tag('dump', '🗑️ Start over', O['tool:dump']);
     if (c.fill || !want) out.push({ key: 'cup', cls: c.fill >= 0.75 ? 'ready' : 'cooking', label: c.fill >= 0.75 ? `🥤 Full! ${pct}%` : `🥤 Fill ${pct}%`, p: Math.min(1, c.fill / 0.9), obj: c.chipAnchor, up: 0 });
     if (!want) return out;
     for (const [k, share] of Object.entries(want.mix)) {

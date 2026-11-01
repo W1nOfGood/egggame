@@ -220,10 +220,10 @@ function boot() {
       artCamHome = { p: fromP, t: fromT };
       toT = props.plate.position.clone(); toT.y += 0.1;
       // for a drink, stand back facing the wall so the cup and the whole shelf behind it are in view
-      if (cup) toT.set(4.2, 1.05, -2.2);
+      if (cup) toT.set(4.2, 1.3, -2.2);
       // for decorating, look down at the plate with the caddy in front of it
       else { toT.x = (toT.x + game.art.caddy.position.x) / 2; toT.z = (toT.z + game.art.caddy.position.z) / 2; }
-      toP = toT.clone().add(new THREE.Vector3().setFromSphericalCoords(cup ? Math.max(9, 6.4 / Math.min(1, window.innerWidth / window.innerHeight)) : portraitDist() + 1.5, cup ? 1.2 : 0.5, cup ? 0 : controls.getAzimuthalAngle()));
+      toP = toT.clone().add(new THREE.Vector3().setFromSphericalCoords(cup ? Math.max(10.2, 7 / Math.min(1, window.innerWidth / window.innerHeight)) : portraitDist() + 1.5, cup ? 1.2 : 0.5, cup ? 0 : controls.getAzimuthalAngle()));
     } else if (artCamHome) { toP = artCamHome.p; toT = artCamHome.t; artCamHome = null; }
     else return;
     game.anim(0.5, (t) => { const k = t * t * (3 - 2 * t); camera.position.lerpVectors(fromP, toP, k); controls.target.lerpVectors(fromT, toT, k); });
