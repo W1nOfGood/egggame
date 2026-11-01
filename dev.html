@@ -92,28 +92,18 @@
         <button id="btn-flip" class="tool flip-tool hidden" data-tool="flip" aria-label="Flip"><span class="ico">↻</span><span>Flip</span></button>
         <button class="tool" data-tool="salt"><span class="ico">🧂</span><span>Salt</span></button>
         <button class="tool" data-tool="pepper"><span class="ico pepper-ico">●</span><span>Pepper</span></button>
-        <button class="tool" data-tool="decorate"><span class="ico">🎨</span><span>Decorate</span></button>
-        <button class="tool" data-tool="drinks"><span class="ico">🍹</span><span>Drinks</span></button>
         <button class="tool" data-tool="toss"><span class="ico">🗑️</span><span>Toss</span></button>
         <button id="btn-serve" class="serve" disabled><span class="ico">🛎️</span><span>Serve</span></button>
       </nav>
 
-      <div id="art-panel" class="card hidden">
-        <div class="art-row"><span class="art-label">Sauce</span><div id="art-sauces" class="art-opts"></div></div>
-        <div class="art-row"><span class="art-label">Toppings</span><div id="art-tops" class="art-opts"></div></div>
-        <div class="art-row"><span class="art-label">Shapes</span><div id="art-stamps" class="art-opts"></div></div>
-        <div class="art-actions"><button id="art-undo" class="art-act">↩ Undo</button><button id="art-clear" class="art-act">Clear</button><button id="art-done" class="art-act done">Done ✓</button></div>
-      </div>
+      <button id="art-done" class="big-btn primary hidden">Done ✓</button>
 
       <div id="drink-panel" class="card hidden">
-        <div class="dk-head"><div id="dk-goal" class="dk-goal"></div><button id="dk-menu" class="art-act">📜 Menu</button></div>
+        <div class="dk-head"><div id="dk-goal" class="dk-goal"></div><button id="dk-done" class="big-btn primary">Done ✓</button></div>
         <div class="dk-bars"><div class="dk-bar"><div id="dk-now" class="dk-fill"></div><span class="dk-zone"></span></div><div id="dk-target" class="dk-fill dk-want hidden"></div></div>
         <div id="dk-status" class="dk-status"></div>
-        <div class="art-row"><span class="art-label">Pour</span><div id="dk-liquids" class="art-opts wrap"></div></div>
-        <div class="art-row"><span class="art-label">Extras</span><div id="dk-extras" class="art-opts wrap"></div></div>
-        <div class="art-row"><span class="art-label">Cup</span><div id="dk-cups" class="art-opts wrap"></div></div>
-        <div class="art-actions"><button id="dk-dump" class="art-act">🗑️ Dump</button><button id="dk-stir" class="art-act">🥄 Stir</button><button id="dk-done" class="art-act done">Done ✓</button></div>
       </div>
+
 
       <div id="tutorial-panel" class="card hidden">
         <div class="tut-head"><b>Tutorial</b><button id="tut-skip" class="link-btn">Skip</button></div>

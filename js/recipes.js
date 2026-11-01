@@ -24,7 +24,7 @@ const side = (kind, label) => {
 const pour = (n) => ['Pour', `Press and hold 🥞 Batter, then drag it over the pan: the longer you hold, the bigger the pancake. Pour ${n > 1 ? `${n} pancakes, one at a time` : 'one pancake'} (or just tap Batter).`];
 const sweetFlip = ['Flip', 'Wait for bubbles on top, then tap ↻ Flip or flick UP with the spatula.'];
 const stackUp = ['Stack', 'When the chip says Ready, lift each one onto the plate: they stack up by themselves.'];
-const dress = (what) => ['Decorate', `Tap 🎨 Decorate and add ${what}, then tap Done and 🛎️ Serve.`];
+const dress = (what) => ['Decorate', `From the caddy in front of the plate, add ${what}. Tap Done, then 🛎️ Serve.`];
 const sidePlate = ['Plate sides', 'Lift each side with the spatula and drag it onto the plate next to the eggs.'];
 
 export const BOOK = [
@@ -152,7 +152,7 @@ export const BOOK = [
     id: 'midnightcakes', title: 'Midnight Pancakes', icon: '💀', cat: 'sweet', recipe: 'pancake', levels: ['golden'], eggs: 0, stack: 3, toppings: ['choc', 'skull'], extras: [], fill: [], salt: false, pepper: false, diff: 3, time: '5 min',
     blurb: 'A tall stack with dark chocolate sauce and a sugar skull on top. Spookily good.',
     steps: [S.butter, S.heat(4), pour(3), sweetFlip, stackUp, dress('🍫 chocolate sauce and a 💀 sugar skull')],
-    tip: 'The ☠️ shape in Decorate draws a chocolate skull if you want to go all in.',
+    tip: 'The skull cutter in the caddy draws a chocolate skull if you want to go all in.',
   },
   {
     id: 'frenchtoast', title: 'French Toast', icon: '🥪', cat: 'sweet', recipe: 'frenchtoast', levels: ['golden'], eggs: 0, stack: 2, toppings: ['syrup'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min',

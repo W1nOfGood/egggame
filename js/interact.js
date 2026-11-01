@@ -4,6 +4,7 @@ import { HOME, PAN, PLATE, BURNER, clampToCounter, surfaceHeight } from './confi
 import { makeWholeEgg, makeButterPat } from './props.js';
 import { Ingredient, ING } from './ingredients.js';
 import { audio } from './audio.js';
+import { CUPS, EXTRAS } from './drinklist.js';
 
 const RADIUS = { pan: 1.35, plate: 1.2, carton: 1.05, butterDish: 0.85, salt: 0.35, pepper: 0.35, spatula: 0.45, fridge: 1.5 };
 const _v = new THREE.Vector3(), _plane = new THREE.Plane(), _ndc = new THREE.Vector2();
@@ -65,11 +66,19 @@ export class Interactor {
     audio.init(); audio.resume();
     if (this.game.busy) return;
     if (this.drag || this.pending) { e.stopImmediatePropagation(); return; } // ignore extra fingers while interacting
-    if (this.game.drinking) { e.stopImmediatePropagation(); e.preventDefault(); return; } // everything happens in the panel
-    if (this.game.decorating) { // the whole canvas is the sauce bottle
+    if (this.game.drinking) { // only the shelf answers, even if something stands in front of it
       e.stopImmediatePropagation(); e.preventDefault();
-      this.setRay(e); this.drag = { id: e.pointerId, kind: 'art', x0: e.clientX, y0: e.clientY };
-      this.game.art.begin(this.ray); audio.pick();
+      this.setRay(e);
+      const hit = this.ray.intersectObject(this.game.shelf.group, true).find((h) => h.object.userData.drinkItem);
+      if (hit) this.drinkPress(e, hit.object.userData.drinkItem);
+      return;
+    }
+    if (this.game.decorating) { // the caddy is live, and the rest of the canvas is the plate
+      e.stopImmediatePropagation(); e.preventDefault();
+      this.setRay(e);
+      const hit = this.ray.intersectObject(this.game.art.caddy, true).find((h) => h.object.userData.artItem);
+      if (hit) this.artPress(e, hit.object.userData.artItem);
+      else { this.drag = { id: e.pointerId, kind: 'art', x0: e.clientX, y0: e.clientY }; this.game.art.begin(this.ray); }
       return;
     }
     if (this.orbiting) return; // let a second finger pinch-zoom
@@ -86,6 +95,14 @@ export class Interactor {
     switch (hit.kind) {
       case 'fridgeItem': this.trayDown(hit.object.userData.kind, e); return; // tap = drops into the pan, drag = carry it
       case 'pet': { let o = hit.object; while (o && !o.userData.onTap) o = o.parent; if (o) o.userData.onTap(); return; }
+      case 'artItem':
+        g.beginDecorate();
+        if (g.decorating) this.artPress(e, hit.object.userData.artItem);
+        return;
+      case 'drinkItem':
+        g.beginDrink();
+        if (g.drinking) this.drinkPress(e, hit.object.userData.drinkItem);
+        return;
       case 'knob': d.heat0 = g.heat; break;
       case 'crackEgg':
         if (g.crack.stage === 'hover') g.crackTap();
@@ -111,6 +128,23 @@ export class Interactor {
     this.drag = d;
   }
 
+  /** Hold a bottle to pour; jars, cups and the tools on the bottom shelf work with a tap. */
+  drinkPress(e, item) {
+    const g = this.game, cup = g.drink;
+    if (item.kind === 'liquid') { cup.pour(item.id); this.drag = { id: e.pointerId, kind: 'drinkPour' }; return; }
+    audio.pop();
+    if (item.kind === 'extra') { cup.toggleExtra(item.id); g.toast(`${EXTRAS[item.id].icon} ${EXTRAS[item.id].name} ${cup.extras.includes(item.id) ? 'added' : 'removed'}`); }
+    else if (item.kind === 'cup') { cup.setCup(item.id); g.toast(`${CUPS[item.id].icon} ${CUPS[item.id].name}`); }
+    else if (item.id === 'stir') { if (cup.ready) { cup.stir(); g.toast('Stirred 🥄'); } }
+    else if (item.id === 'dump') { if (cup.ready) { cup.clear(); audio.trash(); g.toast('Poured away 🗑️'); } }
+    else if (item.id === 'menu') g.emit('drinkMenu');
+  }
+  /** Pressing a bottle or bowl picks it up; keep dragging and it carries straight on to the plate. */
+  artPress(e, item) {
+    const art = this.game.art;
+    art.pickItem(item);
+    if (item.kind === 'sauce' || item.kind === 'top') { this.drag = { id: e.pointerId, kind: 'art', x0: e.clientX, y0: e.clientY, fromCaddy: true }; art.last = null; art.lastTop = null; if (item.kind === 'sauce') art.history.push({ type: 'stroke', id: item.id, from: art.beads.count }); }
+  }
   beginSpatula(e, mode, d) {
     d.kind = 'spatula'; d.mode = mode;
     this.game.spatulaStart(mode);
@@ -154,7 +188,7 @@ export class Interactor {
   }
   trayPromote(e) {
     const { tool } = this.pending; this.pending = null;
-    if (tool === 'flip' || tool === 'toss' || tool === 'decorate' || tool === 'drinks') return this.trayTap(tool);
+    if (tool === 'flip' || tool === 'toss') return this.trayTap(tool);
     if (tool === 'batter') { if (this.game.beginPour()) { this.drag = { id: e.pointerId, kind: 'pour', x0: e.clientX, y0: e.clientY }; this.movePour(e); } return; }
     const d = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: true, t0: performance.now(), last: performance.now(), fromTray: true };
     if (tool === 'butter') this.beginHeld('butter', e, d);
@@ -175,8 +209,6 @@ export class Interactor {
     else if (tool === 'toss') g.toss();
     else if (tool === 'flip') g.autoFlip();
     else if (tool === 'batter') g.autoPour();
-    else if (tool === 'decorate') g.beginDecorate();
-    else if (tool === 'drinks') g.beginDrink();
   }
   autoEgg() {
     const g = this.game;
@@ -289,6 +321,7 @@ export class Interactor {
     const g = this.game, pan = this.props.pan;
     switch (d.kind) {
       case 'art': g.art.end(); break;
+      case 'drinkPour': g.drink.stopPour(); break;
       case 'pour': g.endPour(); break;
       case 'spatula': {
         const v = this.velocity();
@@ -356,10 +389,10 @@ export class Interactor {
 
   onHover(e) {
     if (e.pointerType !== 'mouse' || this.drag || this.game.busy) return;
-    if (this.game.decorating) { this.canvas.style.cursor = 'crosshair'; return; }
+    if (this.game.decorating) { this.setRay(e); this.canvas.style.cursor = this.ray.intersectObject(this.game.art.caddy, true).length ? 'pointer' : 'crosshair'; return; }
     const now = performance.now(); if (now - (this._hoverT || 0) < 60) return; this._hoverT = now;
     const hit = this.pick(e);
-    this.canvas.style.cursor = hit ? (hit.kind === 'crackEgg' || hit.kind === 'salt' || hit.kind === 'pepper' ? 'pointer' : 'grab') : 'default';
+    this.canvas.style.cursor = hit ? (hit.kind === 'crackEgg' || hit.kind === 'salt' || hit.kind === 'pepper' || hit.kind === 'artItem' || hit.kind === 'drinkItem' ? 'pointer' : 'grab') : 'default';
   }
 }
 

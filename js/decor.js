@@ -149,7 +149,7 @@ export function buildDecor(scene, mats, fx) {
   tag(radio, () => { radioState.bump = 1; radioState.onTap && radioState.onTap(); }); pickables.push(radio);
 
   // ---------------- Star-shaped wall clock with real time ----------------
-  const clock = new THREE.Group(); clock.position.set(3.95, 2.55, -3.62); root.add(clock);
+  const clock = new THREE.Group(); clock.position.set(2.85, 4.75, -3.62); root.add(clock);
   const star = new THREE.Shape();
   for (let i = 0; i <= 10; i++) { const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.34 : 0.68; const x = Math.cos(a) * r, y = Math.sin(a) * r; i ? star.lineTo(x, y) : star.moveTo(x, y); }
   const starGeo = new THREE.ExtrudeGeometry(star, { depth: 0.08, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 3 });

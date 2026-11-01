@@ -298,9 +298,9 @@ export function makeFridge(mats) {
 
   // ---- ingredients (each is tagged so a press on it starts that ingredient) ----
   const items = [];
-  const add = (kind, obj, x, y, z, hitW = 0.9) => {
+  const add = (kind, obj, x, y, z, hitW = 0.9, hitH = 0.75) => {
     obj.position.set(x, y, z);
-    const hit = new THREE.Mesh(new THREE.BoxGeometry(hitW, 0.75, 0.8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 0.3; obj.add(hit);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(hitW, hitH, 0.8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = hitH * 0.4; obj.add(hit);
     tag(obj, 'fridgeItem', { kind }); g.add(obj); items.push(obj);
   };
 
@@ -382,6 +382,27 @@ export function makeFridge(mats) {
   });
   const stem = mesh(new THREE.TorusGeometry(0.16, 0.012, 6, 20, Math.PI), green, false); stem.position.set(0, 0.3, 0.04); vine.add(stem);
   add('tomato', vine, 0.62, shelfY[0] + 0.025, 0, 0.6);
+
+  // fridge floor: a jug of pancake batter
+  const jug = new THREE.Group();
+  const china = new THREE.MeshPhysicalMaterial({ color: '#fff4e6', roughness: 0.25, clearcoat: 1 });
+  jug.add(mesh(new THREE.LatheGeometry([[0.001, 0], [0.17, 0], [0.21, 0.05], [0.21, 0.27], [0.17, 0.37], [0.2, 0.46], [0.18, 0.46], [0.15, 0.37]].map((p) => new THREE.Vector2(p[0], p[1])), 28), china));
+  const batterTop = mesh(new THREE.CircleGeometry(0.155, 24), new THREE.MeshPhysicalMaterial({ color: '#f7dfa3', roughness: 0.25, clearcoat: 0.8 }), false); batterTop.rotation.x = -Math.PI / 2; batterTop.position.y = 0.39; jug.add(batterTop);
+  const jugHandle = mesh(new THREE.TorusGeometry(0.1, 0.022, 8, 18, Math.PI), china); jugHandle.rotation.z = -Math.PI / 2; jugHandle.position.set(0.21, 0.24, 0); jug.add(jugHandle);
+  const spout = mesh(new THREE.ConeGeometry(0.045, 0.1, 10), china, false); spout.rotation.z = Math.PI / 2 + 0.5; spout.position.set(-0.21, 0.45, 0); jug.add(spout);
+  const batterTex = labelTex((c, w, h) => { c.fillStyle = '#ff8fc8'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = 'bold 46px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('BATTER', w / 2, h / 2); });
+  const jugBand = mesh(new THREE.CylinderGeometry(0.214, 0.214, 0.12, 28, 1, true), new THREE.MeshStandardMaterial({ map: batterTex, roughness: 0.5 }), false); jugBand.position.y = 0.17; jugBand.rotation.y = Math.PI; jug.add(jugBand);
+  jug.scale.setScalar(0.88);
+  add('batter', jug, -0.48, 0.17, 0.08, 0.7, 0.45);
+
+  // fridge floor: bread soaking in custard, ready for french toast
+  const soak = new THREE.Group();
+  const dish = new THREE.MeshPhysicalMaterial({ color: '#d9c2ff', roughness: 0.25, clearcoat: 1 });
+  soak.add(rb(0.86, 0.09, 0.52, 0.035, dish, 0, 0.045, 0, soak));
+  const custard = mesh(new THREE.BoxGeometry(0.76, 0.012, 0.42), new THREE.MeshPhysicalMaterial({ color: '#f6d365', roughness: 0.15, clearcoat: 1 }), false); custard.position.y = 0.094; soak.add(custard);
+  const eggy = new THREE.MeshPhysicalMaterial({ color: '#f4cf6a', roughness: 0.6 });
+  [[-0.18, 0.12, 0.13], [0.18, -0.15, 0.17]].forEach(([x, rot, y]) => { const s = rb(0.3, 0.06, 0.32, 0.025, eggy, x, y, 0, soak); s.rotation.set(0.1, rot, x > 0 ? -0.12 : 0.08); });
+  add('frenchtoast', soak, 0.42, 0.17, 0.08, 0.95, 0.45);
 
   g.userData.items = items;
   return g;

@@ -517,22 +517,8 @@ html, body { overflow: hidden; }
 }
 
 /* ---------- plate art ---------- */
-#art-panel {
-  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(10px + var(--safe-b));
-  width: min(560px, calc(100vw - 16px)); padding: 10px 12px; display: grid; gap: 6px;
-}
+#art-done { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(14px + var(--safe-b)); min-width: 160px; }
 #hud.decorating #tray, #hud.decorating #tray2, #hud.decorating #heat-panel, #hud.decorating #guide-chips { display: none; }
-.art-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.art-label { flex: 0 0 62px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
-.art-opts { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
-.art-opts::-webkit-scrollbar { display: none; }
-.art-opt { flex: 0 0 42px; height: 42px; font-size: 22px; line-height: 1; padding: 0; border-radius: 14px; border: 2px solid var(--line); background: #fff; }
-.art-opt.on { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(255, 138, 122, .3); }
-.art-actions { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 6px; margin-top: 2px; }
-.art-act { height: 42px; border-radius: 14px; font-weight: 700; font-size: 15px; border: 2px solid var(--line); background: #fff; }
-.art-act.done { background: var(--mint); border-color: var(--mint); color: #17463a; }
-[data-theme="plum"] .art-opt, [data-theme="plum"] .art-act:not(.done) { background: #3a2758; border-color: #5b437e; color: var(--ink); }
-[data-theme="plum"] .art-opt.on { border-color: #ff8fc8; box-shadow: 0 0 0 3px rgba(255, 143, 200, .35); }
 
 /* ---------- daily visit ---------- */
 .visit-line { margin: 8px 0 0; font-size: 14px; font-weight: 600; }
@@ -576,31 +562,19 @@ html, body { overflow: hidden; }
 .photo-big { display: block; max-width: 100%; max-height: 52vh; margin: 0 auto 10px; border-radius: 8px; box-shadow: var(--shadow); }
 .photo-caption { width: 100%; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: #fff; color: #3a2758; text-align: center; font-size: 16px; -webkit-user-select: text; user-select: text; touch-action: manipulation; }
 @media (max-width: 560px) { .scrap-top { grid-template-columns: 1fr; } }
-@media (max-aspect-ratio: 1/1) { #hud.decorating #hint { display: none; } }
-@media (max-width: 420px) { .art-label { flex-basis: 50px; font-size: 11px; } .art-opts { gap: 5px; } .art-opt { flex-basis: 40px; height: 40px; font-size: 20px; } }
 
 /* ---------- drinks ---------- */
-@media (max-width: 420px) { #drink-panel { padding: 8px 10px; gap: 4px; } #drink-panel .art-label { display: none; } #drink-panel .art-opts.wrap { gap: 4px; } #drink-panel .art-opts.wrap .art-opt { flex: 0 0 37px; height: 34px; font-size: 18px; } #drink-panel .art-act { height: 38px; } }
 #drinks-tabs { background: none; border: 0; padding: 8px 0 0; flex-wrap: wrap; overflow: visible; }
 [data-theme="plum"] #drinks-tabs .book-tab:not(.on) { background: #3a2758; border-color: #5b437e; color: var(--ink); }
 #drink-panel {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(10px + var(--safe-b));
-  width: min(640px, calc(100vw - 16px)); max-height: 62vh; overflow: auto; padding: 10px 12px; display: grid; gap: 6px;
+  width: min(560px, calc(100vw - 16px)); padding: 8px 12px; display: grid; gap: 5px;
 }
 #hud.drinking #hint { display: none; }
-.art-opts.wrap { flex-wrap: wrap; overflow: visible; gap: 5px; }
-.art-opts.wrap .art-opt { flex: 0 0 38px; height: 38px; font-size: 20px; }
-#dk-liquids .art-opt { touch-action: none; position: relative; overflow: hidden; }
-#dk-liquids .art-opt::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: var(--c); }
-#dk-liquids .art-opt.held { transform: scale(.9); border-color: var(--coral); }
-.art-opt.want { border-color: var(--butter); }
-.art-opt.want.on, .art-opt.on { border-color: var(--coral); }
-[data-theme="plum"] .art-opt.want { border-color: #ffd86b; box-shadow: 0 0 0 2px rgba(255, 216, 107, .3); }
-[data-theme="plum"] .art-opt.want.on { border-color: #ff8fc8; }
 .dk-head { display: flex; align-items: center; gap: 10px; }
+#dk-done { flex: 0 0 auto; width: auto; min-width: 0; margin: 0; padding: 8px 18px; font-size: 16px; }
 .dk-goal { flex: 1; min-width: 0; text-align: left; font-size: 15px; }
 .dk-goal small { display: block; font-size: 12px; color: var(--ink-soft); line-height: 1.25; margin-top: 1px; }
-.dk-head .art-act { flex: 0 0 auto; height: 36px; padding: 0 12px; font-size: 13px; }
 .dk-bars { display: grid; gap: 3px; }
 .dk-bar { position: relative; height: 14px; border-radius: 8px; overflow: hidden; background: rgba(180, 140, 255, .15); }
 .dk-fill { display: flex; height: 100%; }

@@ -1,6 +1,6 @@
-// The drink bar UI: the pouring panel in the kitchen, the Drink Menu collection screen, and tips for served drinks.
+// The drink UI: the little card shown while making a drink on the 3D shelf, the Drink Menu collection screen, and tips for served drinks.
 import { audio } from './audio.js';
-import { CUPS, DRINKS, DRINK_CATS, EXTRAS, LIQUIDS, drinkById, recipeText } from './drinklist.js';
+import { CUPS, DRINKS, DRINK_CATS, LIQUIDS, aDrink, drinkById, recipeText } from './drinklist.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -20,39 +20,12 @@ export class DrinkBar {
   }
   get wantedId() { const g = this.game; return (g.order && g.order.drink) || g.drinkGoal || null; }
 
-  // ---------- pouring panel ----------
+  // ---------- what's in the cup (the making itself happens on the 3D shelf) ----------
   _bindPanel() {
-    const cup = this.game.drink, btn = (data, id, o) => `<button class="art-opt" data-${data}="${id}" title="${o.name}" aria-label="${o.name}"${o.color ? ` style="--c:${o.color}"` : ''}>${o.icon}</button>`;
-    $('dk-liquids').innerHTML = Object.entries(LIQUIDS).map(([id, o]) => btn('liquid', id, o)).join('');
-    $('dk-extras').innerHTML = Object.entries(EXTRAS).map(([id, o]) => btn('extra', id, o)).join('');
-    $('dk-cups').innerHTML = Object.entries(CUPS).map(([id, o]) => btn('cup', id, o)).join('');
-    // hold a liquid to pour it
-    $('dk-liquids').addEventListener('pointerdown', (e) => {
-      const b = e.target.closest('[data-liquid]'); if (!b) return;
-      e.preventDefault(); audio.init(); audio.resume();
-      this._pointer = e.pointerId; b.classList.add('held'); this._heldBtn = b;
-      cup.pour(b.dataset.liquid);
-    });
-    const stop = (e) => {
-      if (e.pointerId !== this._pointer) return;
-      this._pointer = null; if (this._heldBtn) this._heldBtn.classList.remove('held');
-      cup.stopPour();
-    };
-    window.addEventListener('pointerup', stop); window.addEventListener('pointercancel', stop);
-    $('drink-panel').addEventListener('contextmenu', (e) => e.preventDefault());
-    $('drink-panel').addEventListener('click', (e) => {
-      const b = e.target.closest('button'); if (!b || b.dataset.liquid) return;
-      audio.init(); audio.resume(); audio.pop();
-      if (b.dataset.extra) { cup.toggleExtra(b.dataset.extra); const x = EXTRAS[b.dataset.extra]; this.game.toast(`${x.icon} ${x.name} ${cup.extras.includes(b.dataset.extra) ? 'added' : 'removed'}`); }
-      else if (b.dataset.cup) cup.setCup(b.dataset.cup);
-      else if (b.id === 'dk-stir') cup.stir();
-      else if (b.id === 'dk-dump') { cup.clear(); audio.trash(); }
-      else if (b.id === 'dk-done') this.game.endDrink();
-      else if (b.id === 'dk-menu') this.openMenu();
-      this.update();
-    });
+    $('dk-done').addEventListener('click', () => { audio.init(); audio.resume(); audio.pop(); this.game.endDrink(); });
+    this.game.on('drinkMenu', () => this.openMenu());
   }
-  /** Keep the panel in step with the cup (cheap: it only touches the page when something changed). */
+  /** Keep the card and the shelf rings in step with the cup (cheap: it only touches anything when something changed). */
   update() {
     const g = this.game; if (!g.drinking) return;
     const c = g.drink, want = drinkById(this.wantedId), made = c.made(), r = c.result(this.wantedId);
@@ -60,19 +33,18 @@ export class DrinkBar {
     const now = Object.entries(c.amounts).map(([k, v]) => seg(k, v * 100)).join('');
     const target = want ? Object.entries(want.mix).map(([k, v]) => seg(k, v * 90)).join('') : '';
     const status = c.pouring ? `Pouring ${LIQUIDS[c.pouring].name}…`
-      : !c.ready ? 'Press and hold a liquid to pour'
+      : !c.ready ? 'Press and hold a bottle on the shelf'
         : want ? (r.stars ? `${'⭐'.repeat(r.stars)} ${esc(r.note)}` : esc(r.note))
-          : made ? `${made.icon} That's a ${esc(made.name)}!` : 'A house special, all your own ✨';
-    const html = `${want ? `<b>${want.icon} ${esc(want.name)}</b><small>${recipeText(want)}</small>` : '<b>🍹 Drink Bar</b><small>Mix anything. Recipes you match go in the Drink Menu.</small>'}|${now}|${target}|${status}|${c.extras}|${c.cupId}|${c.stirred}|${want && want.id}`;
+          : made ? `${made.icon} That's ${esc(aDrink(made))}!` : 'A house special, all your own ✨';
+    const goal = want ? `<b>${want.icon} ${esc(want.name)}</b><small>${recipeText(want)}</small>` : '<b>🍹 Drink Shelf</b><small>Mix anything. Tap the board for the menu.</small>';
+    const html = `${goal}|${now}|${target}|${status}|${c.extras}|${c.cupId}|${want && want.id}`;
     if (html === this._html) return;
     this._html = html;
-    $('dk-goal').innerHTML = html.split('|')[0];
+    $('dk-goal').innerHTML = goal;
     $('dk-now').innerHTML = now;
     $('dk-target').innerHTML = target; $('dk-target').classList.toggle('hidden', !want);
     $('dk-status').innerHTML = status;
-    document.querySelectorAll('#dk-liquids [data-liquid]').forEach((b) => b.classList.toggle('want', !!want && b.dataset.liquid in want.mix));
-    document.querySelectorAll('#dk-extras [data-extra]').forEach((b) => { const id = b.dataset.extra; b.classList.toggle('on', c.extras.includes(id)); b.classList.toggle('want', !!want && want.extras.includes(id)); });
-    document.querySelectorAll('#dk-cups [data-cup]').forEach((b) => b.classList.toggle('on', b.dataset.cup === c.cupId));
+    g.shelf.mark(want, c);
   }
 
   // ---------- Drink Menu ----------

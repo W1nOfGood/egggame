@@ -123,6 +123,7 @@ export const DRINKS = [
   D('noxiespecial', 'Noxie\'s Special', '🐈‍⬛', 'spooky', 'skull', { taro: 0.4, strawberry: 0.3, milk: 0.3 }, ['whip', 'cherry'], 'Noxie invented it by knocking things over.'),
 ];
 export const drinkById = (id) => DRINKS.find((d) => d.id === id);
+export const aDrink = (d) => `${/^[AEIOU]/.test(d.name) ? 'an' : 'a'} ${d.name}`;
 
 const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
 /** Biggest difference between what's in the cup (shares of 1) and a recipe. */
@@ -151,7 +152,7 @@ export function rateDrink({ amounts, extras, fill, spilled }, wantedId = null) {
   if (!Object.keys(sharesOf(amounts)).length) return null;
   const made = identify(amounts, extras), wanted = wantedId ? drinkById(wantedId) : made;
   if (!wanted) return { drink: null, wanted: null, stars: 0, note: 'A house special, all your own' };
-  if (made !== wanted) return { drink: made, wanted, stars: 1, note: made ? `Made a ${made.name} instead` : `Not quite a ${wanted.name}` };
+  if (made !== wanted) return { drink: made, wanted, stars: 1, note: made ? `Made ${aDrink(made)} instead` : `Not quite ${aDrink(wanted)}` };
   const g = ratioGap(sharesOf(amounts), wanted.mix), notes = [];
   let stars = 3;
   if (g > 0.2) { stars = 1; notes.push('proportions way off'); } else if (g > 0.1) { stars = 2; notes.push('proportions a little off'); }

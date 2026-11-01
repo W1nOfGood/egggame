@@ -1,7 +1,9 @@
 // Plate art: squeeze sauces onto a plated dish and drop toppings on it. Sauce is a chain of glossy beads placed
 // where the pointer ray hits the food, so it follows the real shape of whatever is on the plate.
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/RoundedBoxGeometry.js';
 import { PLATE } from './config.js';
+import { audio } from './audio.js';
 
 export const SAUCES = [
   { id: 'ketchup', name: 'Ketchup', icon: '🍅', color: '#a81410' },
@@ -77,6 +79,7 @@ function topping(id) {
   return root;
 }
 
+const CADDY = { x: 2.95, z: 2.45 };
 const MAX_BEADS = 2400, SPACING = 0.018, BEAD_R = 0.042;
 const _d = new THREE.Object3D(), _col = new THREE.Color(), _o = new THREE.Vector3(), _down = new THREE.Vector3(0, -1, 0), _p = new THREE.Vector3();
 const shown = (o) => { for (; o; o = o.parent) if (o.visible === false) return false; return true; };
@@ -88,8 +91,72 @@ export class PlateArt {
     this.root = new THREE.Group(); this.root.userData.art = true; this.anchor.add(this.root);
     this.beads = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 7), new THREE.MeshPhysicalMaterial({ roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.08 }), MAX_BEADS);
     this.beads.setColorAt(0, _col.set('#ffffff')); this.beads.count = 0; this.beads.frustumCulled = false; this.beads.userData.art = true; this.root.add(this.beads);
-    this.history = []; this.tool = { kind: 'sauce', id: 'ketchup' };
+    this.history = []; this.tool = null; this.lastSauce = 'ketchup'; this.held = null;
     this.last = null; this.lastTop = null; this.full = false;
+    this._buildCaddy();
+  }
+
+  // ---------- the caddy on the counter: real bottles, bowls, cutters and a cloth to touch ----------
+  _buildCaddy() {
+    const g = this.game, caddy = this.caddy = new THREE.Group();
+    caddy.position.set(CADDY.x, 0, CADDY.z); g.scene.add(caddy);
+    const base = new THREE.Mesh(new RoundedBoxGeometry(2.42, 0.07, 1.22, 3, 0.03), g.mats.wood); base.position.y = 0.035; base.castShadow = true; base.receiveShadow = true; caddy.add(base);
+    this.items = [];
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const item = (kind, id, obj, x, z, hw = 0.34, hh = 0.5) => {
+      const box = new THREE.Group(); box.add(obj); box.position.set(x, 0.07, z);
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, 0.34), hitMat); hit.position.y = hh / 2; box.add(hit);
+      const it = { kind, id, group: box, home: box.position.clone() };
+      box.traverse((o) => { o.userData.interact = 'artItem'; o.userData.artItem = it; });
+      caddy.add(box); this.items.push(it);
+    };
+    const X = (i) => -0.97 + i * 0.388;
+    SAUCES.forEach((a, i) => item('sauce', a.id, makeBottle(a.color), X(i), -0.38, 0.34, 0.68));
+    TOPPINGS.forEach((a, i) => item('top', a.id, makeBowl(a.id), X(i), 0.02, 0.36, 0.3));
+    const cutterMat = new THREE.MeshPhysicalMaterial({ color: '#ff8fc8', roughness: 0.3, clearcoat: 1 });
+    STAMPS.forEach((a, i) => {
+      const sh = new THREE.Shape(); a.paths()[0].forEach(([x, z], k) => (k ? sh.lineTo(x * 0.14, -z * 0.14) : sh.moveTo(x * 0.14, -z * 0.14)));
+      const cut = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.035, bevelEnabled: false }), cutterMat); cut.rotation.x = -Math.PI / 2; cut.castShadow = true;
+      item('stamp', a.id, cut, X(i), 0.4, 0.34, 0.16);
+    });
+    const cloth = new THREE.Group();
+    const towel = new THREE.MeshPhysicalMaterial({ color: '#c9b6e4', roughness: 0.9 });
+    [0.02, 0.055, 0.09].forEach((y, k) => { const f = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.035, 0.26, 2, 0.015), towel); f.position.set(k * 0.008, y, 0); f.castShadow = true; cloth.add(f); });
+    item('cloth', 'cloth', cloth, X(5), 0.4, 0.36, 0.2);
+    g.kitchen.pickables.push(caddy);
+  }
+  /** A press on something in the caddy. */
+  pickItem(it) {
+    const g = this.game, hop = (o) => { const y = it.home.y; g.anim(0.3, (t) => { o.position.y = y + Math.sin(Math.PI * t) * 0.14; }, () => { o.position.y = y; }); };
+    if (it.kind === 'cloth') {
+      if (this.empty) return g.toast('Nothing to wipe off yet');
+      this.undo(); audio.scrape(1); hop(it.group); return g.toast('Wiped ✨');
+    }
+    if (it.kind === 'stamp') { hop(it.group); audio.pick(); return this.stamp(it.id); }
+    if (this.held !== it) { this.rest(); this.held = it; }
+    this.tool = { kind: it.kind, id: it.id };
+    if (it.kind === 'sauce') this.lastSauce = it.id;
+    audio.pick();
+    this._glide(it, it.home.clone().setY(it.home.y + 0.3), 0, 0.15);
+    g.emit('changed');
+  }
+  /** Put whatever is in hand back in the caddy. */
+  rest() {
+    const it = this.held; this.held = null; this.tool = null;
+    if (it) this._glide(it, it.home, 0, 0.2);
+  }
+  _glide(it, to, rx, dur) {
+    const o = it.group, from = o.position.clone(), r0 = o.rotation.x, dest = to.clone(), token = (it.token = (it.token || 0) + 1);
+    this.game.anim(dur, (t) => { if (it.token !== token) return; o.position.lerpVectors(from, dest, t); o.rotation.x = r0 + (rx - r0) * t; });
+  }
+  /** While drawing, the bottle or bowl really is over the spot on the plate. */
+  _holdOver(p) {
+    const it = this.held; if (!it) return;
+    it.token = (it.token || 0) + 1;
+    this.anchor.localToWorld(_o.copy(p)); this.caddy.worldToLocal(_o);
+    const sauce = it.kind === 'sauce';
+    it.group.position.set(_o.x, _o.y + (sauce ? 0.72 : 0.42), _o.z + (sauce ? 0 : 0.05));
+    it.group.rotation.x = sauce ? Math.PI : 0.5; // upside down, nozzle first
   }
   get used() { return new Set(this.history.map((h) => h.id)); }
   get empty() { return !this.history.length; }
@@ -124,15 +191,18 @@ export class PlateArt {
   // ---------- pointer ----------
   begin(ray) {
     const t = this.tool; this.last = null; this.lastTop = null;
+    if (!t) return this.game.toast('Pick up a sauce or a bowl from the caddy first');
     if (t.kind === 'sauce') { this.history.push({ type: 'stroke', id: t.id, from: this.beads.count }); this.move(ray); }
     else this._drop(ray);
   }
   move(ray) {
+    if (!this.tool) return;
     if (this.tool.kind !== 'sauce') return this._drop(ray);
     const p = this._hit(ray);
-    if (p) this._strokeTo(p, this.tool.id); else this.last = null;
+    if (p) { this._strokeTo(p, this.tool.id); this._holdOver(p); } else this.last = null;
   }
   end() {
+    if (this.held) this._glide(this.held, this.held.home.clone().setY(this.held.home.y + 0.3), 0, 0.2);
     const h = this.history[this.history.length - 1];
     if (h && h.type === 'stroke' && this.beads.count === h.from) this.history.pop();
     this.last = null; this.lastTop = null;
@@ -156,6 +226,7 @@ export class PlateArt {
   }
   _drop(ray) {
     const t = this.tool, p = this._hit(ray); if (!p) return;
+    this._holdOver(p);
     if (this.lastTop && this.lastTop.distanceTo(p) < 0.28) return;
     this.lastTop = p;
     const spec = ALL[t.id], parts = [];
@@ -172,7 +243,7 @@ export class PlateArt {
   /** Squeeze a ready-made shape across the plate, upright for the current camera. */
   stamp(stampId) {
     const st = STAMPS.find((s) => s.id === stampId); if (!st) return;
-    const id = this.tool.kind === 'sauce' ? this.tool.id : 'ketchup';
+    const id = this.lastSauce;
     const az = this.game.camAz, c = Math.cos(az), s = Math.sin(az), scale = 0.58;
     const pts = [];
     for (const path of st.paths()) {
@@ -205,6 +276,26 @@ export class PlateArt {
     for (const c of this.root.children.slice()) if (c !== this.beads) this.root.remove(c);
     this.beads.count = 0; this.history = []; this.last = null; this.full = false;
   }
+}
+
+// ---------- things in the caddy ----------
+function makeBottle(color) {
+  const g = new THREE.Group();
+  const body = new THREE.MeshPhysicalMaterial({ color, roughness: 0.22, clearcoat: 1 });
+  const pts = [[0.001, 0], [0.12, 0], [0.135, 0.03], [0.135, 0.36], [0.1, 0.44], [0.001, 0.46]].map(([x, y]) => new THREE.Vector2(x, y));
+  const b = new THREE.Mesh(new THREE.LatheGeometry(pts, 18), body); b.castShadow = true; g.add(b);
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.05, 0.16, 12), new THREE.MeshPhysicalMaterial({ color: '#fff4e6', roughness: 0.35 })); nozzle.position.y = 0.53; nozzle.castShadow = true; g.add(nozzle);
+  return g;
+}
+function makeBowl(id) {
+  const g = new THREE.Group();
+  const pts = [[0.001, 0], [0.09, 0], [0.165, 0.09], [0.17, 0.11], [0.15, 0.105], [0.08, 0.03], [0.001, 0.03]].map(([x, y]) => new THREE.Vector2(x, y));
+  const bowl = new THREE.Mesh(new THREE.LatheGeometry(pts, 20), new THREE.MeshPhysicalMaterial({ color: '#fff4e6', roughness: 0.25, clearcoat: 1, side: THREE.DoubleSide })); bowl.castShadow = true; g.add(bowl);
+  const spec = { blueberry: [[-0.05, 0.03], [0.05, 0.02], [0, -0.05]], strawberry: [[0, 0]], whip: [[0, 0]], skull: [[0, 0]] }[id];
+  const spots = spec || Array.from({ length: 9 }, (_, i) => [Math.cos(i * 2.4) * 0.09 * Math.sqrt((i + 1) / 9), Math.sin(i * 2.4) * 0.09 * Math.sqrt((i + 1) / 9)]);
+  const size = { blueberry: 0.72, strawberry: 0.85, whip: 0.62, skull: 0.72 }[id] || 1;
+  for (const [x, z] of spots) { const m = topping(id); m.position.set(x, 0.04, z); m.scale.multiplyScalar(size); g.add(m); }
+  return g;
 }
 
 /** A little squeeze bottle-style jug of pancake batter. */

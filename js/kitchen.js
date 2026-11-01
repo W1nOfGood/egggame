@@ -42,7 +42,7 @@ export function buildKitchen(scene, mats, q) {
 
   // ---------- Window with sky, clouds & frame ----------
   const win = new THREE.Group(); win.position.set(-1.2, 5.6, -3.7); root.add(win);
-  const sky = mesh(new THREE.PlaneGeometry(5.2, 3.2), new THREE.MeshBasicMaterial({ map: skyTexture() })); sky.position.z = -0.05; win.add(sky);
+  const sky = mesh(new THREE.PlaneGeometry(5.2, 3.2), new THREE.MeshBasicMaterial({ map: skyTexture(), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); sky.position.z = -0.015; win.add(sky); // clear of the wall behind it, or the two z-fight
   const frameParts = [[5.6, 0.22, 0, 1.7], [5.6, 0.22, 0, -1.7], [0.22, 3.6, -2.7, 0], [0.22, 3.6, 2.7, 0], [0.12, 3.2, 0, 0], [5.2, 0.12, 0, 0]];
   for (const [w, h, x, y] of frameParts) { const f = mesh(new RoundedBoxGeometry(w, h, 0.2, 2, 0.05), mats.windowFrame); f.position.set(x, y, 0.05); win.add(f); }
   const sill = mesh(new RoundedBoxGeometry(6.2, 0.16, 0.6, 3, 0.06), mats.windowFrame, { cast: true }); sill.position.set(0, -1.85, 0.25); win.add(sill);

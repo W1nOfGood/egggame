@@ -8,6 +8,7 @@ import { makeShellHalves, makeButterPat } from './props.js';
 import { Ingredient, ING, STACKS } from './ingredients.js';
 import { PlateArt, makeJug, artLabel } from './art.js';
 import { DrinkCup } from './drinks.js';
+import { DrinkShelf } from './drinkshelf.js';
 import { CUPS, drinkById } from './drinklist.js';
 import * as S from './scoring.js';
 import { audio } from './audio.js';
@@ -37,7 +38,7 @@ export class Game {
     this._buildButterPool();
     this.art = new PlateArt(this); this.decorating = false;
     this.pour = null;
-    this.drinking = false; this.drinkGoal = null; this.drink = new DrinkCup(this);
+    this.drinking = false; this.drinkGoal = null; this.drink = new DrinkCup(this); this.shelf = new DrinkShelf(this);
   }
   on(e, f) { (this.listeners[e] ||= []).push(f); }
   emit(e, d) { (this.listeners[e] || []).forEach((f) => f(d)); }
@@ -270,7 +271,7 @@ export class Game {
   }
 
   // ---------------- spatula ----------------
-  spatulaStart(mode) { const s = this.spat; s.mode = mode; s.lastA = null; s.px = s.pz = s.sx = s.sz = null; s.wasInPan = false; s.stirAngle = 0; s.beatLock = false; s.askedScramble = false; }
+  spatulaStart(mode) { const s = this.spat; s.mode = mode; s.lastA = null; s.px = s.pz = s.sx = s.sz = null; s.wasInPan = false; s.stirAngle = 0; s.beatLock = false; s.askedScramble = false; s.warned = false; }
   /** Nearest landed egg in the pan to a pan-local point: {f, d} */
   _foodNear(lx, lz, maxD = 1.15) {
     let best = null;
@@ -297,20 +298,31 @@ export class Game {
 
     this.spat.cooldown -= dt;
     const flick = vel.y < -650 && Math.abs(vel.y) > 1.2 * Math.abs(vel.x) && this.spat.cooldown <= 0;
-    if (this.carry) { if (flick) this.flipIng(-vel.y); return; }
+    if (this.carry) {
+      const g = this.carry.ing.group;
+      if (this.carry.ing.kind in STACKS) { // soft things sway on the blade as it moves
+        g.rotation.z += (Math.max(-0.35, Math.min(0.35, -vel.x / 2600)) - g.rotation.z) * Math.min(1, dt * 12);
+        g.rotation.x += (Math.max(-0.3, Math.min(0.3, vel.y / 2600)) - g.rotation.x) * Math.min(1, dt * 12);
+      }
+      if (flick) this.flipIng(-vel.y);
+      return;
+    }
     if (cf) { if (flick) this.flipFood(cf, -vel.y); return; }
     const nf = this._foodNear(lx, lz), f = nf ? nf.f : null, dF = nf ? nf.d : 99;
     const lifting = this.spat.mode === 'lift' || this.spat.mode === 'free';
     // a quick upward flick over an item flips it right in the pan (no need to lift it first)
     if (flick && inPan) {
       const near = this._ingNear(lx, lz, 0.25);
-      if (near && near.ing.kind !== 'rice' && near.ing.kind !== 'cheese' && near.d < dF) { this._flipLand = { x: near.ing.group.position.x, z: near.ing.group.position.z }; this.liftIng(near.ing); return this.flipIng(-vel.y); }
+      if (near && near.ing.kind !== 'rice' && near.ing.kind !== 'cheese' && near.d < dF && !this._tooRunny(near.ing)) { this._flipLand = { x: near.ing.group.position.x, z: near.ing.group.position.z }; this.liftIng(near.ing); return this.flipIng(-vel.y); }
       if (f && dF < 0.65 && !f.scrambled && !f.folded) { this._flipLand = { x: f.group.position.x, z: f.group.position.z }; this.liftFood(f); return this.flipFood(f, -vel.y); }
     }
     // touch a side dish with the spatula to lift it
     if (inPan && this.spat.cooldown <= 0 && lifting) {
       const near = this._ingNear(lx, lz);
-      if (near && near.ing.kind !== 'rice' && near.d < dF) return this.liftIng(near.ing);
+      if (near && near.ing.kind !== 'rice' && near.d < dF) {
+        if (!this._tooRunny(near.ing)) return this.liftIng(near.ing);
+        if (!this.spat.warned) { this.spat.warned = true; this.toast('Still runny! Wait for it to set a little 🥞'); }
+      }
     }
     // scoop scrambled eggs / rice out over the rim
     if (this.spat.wasInPan && r > PAN.rimR + 0.1) {
@@ -483,10 +495,15 @@ export class Game {
     this.anim(0.55, (t) => { ing.group.position.lerpVectors(from, to, ease(t)); ing.group.position.y += Math.sin(Math.PI * t) * 1.1; ing.group.rotation.set(0, t * 3, 0); },
       () => { this.pendingSpots = this.pendingSpots.filter((q) => q !== spot); if (!this.flying.delete(ing)) return; this.scene.remove(ing.group); this.placeIngredient(ing, 'pan', spot[0], spot[1]); });
   }
+  /** A pancake with an uncooked underside can't be picked up yet. */
+  _tooRunny(ing) { return ing.kind === 'pancake' && !ing.flips && ing.c[1 - ing.top] < 0.16; }
   liftIng(ing) {
     this.carry = { ing }; ing.loc = 'spatula';
-    this.props.spatula.add(ing.group);
-    ing.group.position.set(0, 0.05, -0.02); ing.group.rotation.set(0, 0, 0); ing.group.scale.setScalar(0.62);
+    const g = ing.group, S0 = STACKS[ing.kind] ? 0.86 : 0.62;
+    // slide onto the blade from where it was instead of snapping there
+    this.props.spatula.attach(g); g.rotation.set(0, 0, 0);
+    const from = g.position.clone(), s0 = g.scale.x;
+    this.anim(0.12, (t) => { if (!this.carry || this.carry.ing !== ing) return; g.position.lerpVectors(from, _v.set(0, 0.05, -0.02), t); g.scale.setScalar(s0 + (S0 - s0) * t); });
     audio.scrape(1);
     this.emit('changed');
   }
@@ -502,19 +519,27 @@ export class Game {
     const axis = new THREE.Vector3(Math.cos(this.camAz), 0, -Math.sin(this.camAz));
     let swapped = false;
     audio.flipWhoosh();
-    this.anim(0.58, (t) => {
+    // a harder flick throws pancakes and toast higher, and a really hard one spins them an extra time round
+    const soft = ing.kind in STACKS, power = soft ? Math.max(0, Math.min(1, (speed - 700) / 1500)) : 0, turns = power > 0.75 ? 3 : 1;
+    const rise = 1 + power * 1.1, dur = 0.58 + power * 0.32;
+    this.anim(dur, (t) => {
       this.panAnchor.getWorldPosition(_v); _v.x += lx; _v.z += lz;
-      g.position.lerpVectors(from, _v, t); g.position.y += Math.sin(Math.PI * t) * 1.0;
-      if (!swapped && t >= 0.5) { swapped = true; ing.flip(); }
-      g.quaternion.setFromAxisAngle(axis, swapped ? Math.PI * t - Math.PI : Math.PI * t);
+      g.position.lerpVectors(from, _v, t); g.position.y += Math.sin(Math.PI * t) * rise;
+      if (!swapped && t * turns >= 0.5) { swapped = true; ing.flip(); }
+      const a = Math.PI * t * turns;
+      g.quaternion.setFromAxisAngle(axis, swapped ? a - Math.PI : a);
     }, () => {
       if (!swapped) ing.flip();
       if (!this.ings.includes(ing)) return; // tossed mid-air
       this.panAnchor.add(g); g.position.set(lx, 0.01, lz); g.rotation.set(0, ing.yaw, 0); ing.loc = 'pan';
       this.spat.cooldown = 0.7; this.spat.mode = 'stir';
       audio.plop();
+      if (soft) { // a soft landing: it squashes and wobbles back
+        this.anim(0.32, (t) => { if (ing.loc !== 'pan') return; const w = Math.sin(t * Math.PI * 2.5) * (1 - t) * 0.22; g.scale.set(1 + w, 1 - w * 1.4, 1 + w); }, () => { if (ing.loc === 'pan') g.scale.setScalar(1); });
+        if (turns > 1) this.toast(`Triple flip! ${ING[ing.kind].icon}✨`, 'good');
+      }
       if (ing.messy && ing.flips === 1) { audio.tear(); this.toast('Flipped too early — it smeared! 😬', 'bad'); }
-      else if (ing.flips === 1) this.toast(`Nice flip! ${ING[ing.kind].icon}`, 'good');
+      else if (ing.flips === 1 && turns === 1) this.toast(`Nice flip! ${ING[ing.kind].icon}`, 'good');
       this.emit('changed');
     });
   }
@@ -523,8 +548,9 @@ export class Game {
     this.carry = null; ing.loc = 'air';
     const g = ing.group; this.scene.attach(g); g.scale.setScalar(1);
     const from = g.position.clone(), sl = PLATE_SLOT[ing.kind] || [0, 0];
+    const landY = (STACKS[ing.kind] || 0) * this.ings.filter((i) => i !== ing && i.kind === ing.kind && i.loc === 'plate').length; // onto the top of the stack
     this.anim(0.4, (t) => {
-      this.plateAnchor.localToWorld(_v.set(sl[0], 0.05, sl[1]));
+      this.plateAnchor.localToWorld(_v.set(sl[0], 0.05 + landY, sl[1]));
       g.position.lerpVectors(from, _v, ease(t)); g.position.y += Math.sin(Math.PI * t) * 0.5;
     }, () => { if (this.ings.includes(ing)) this.placeIngredient(ing, 'plate'); });
   }
@@ -605,6 +631,19 @@ export class Game {
     this.pourMove(pan.position.x + x, pan.position.z + z);
     this.anim(1.6, () => {}, () => this.endPour());
   }
+  /** Pancakes and toast don't sit inside each other: they ease apart in the pan. */
+  _settleStacks(dt) {
+    const list = this.ings.filter((i) => i.loc === 'pan' && i.kind in STACKS && !(this.pour && this.pour.ing === i));
+    for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
+      const p = list[a].group.position, q = list[b].group.position, min = (list[a].R + list[b].R) * 0.88;
+      let dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
+      if (d >= min) continue;
+      if (d < 0.001) { dx = 1; dz = 0; d = 1; }
+      const push = Math.min(min - d, dt * 0.9) / 2 / d;
+      p.x -= dx * push; p.z -= dz * push; q.x += dx * push; q.z += dz * push;
+      for (const o of [p, q]) { const r = Math.hypot(o.x, o.z); if (r > 0.56) { o.x *= 0.56 / r; o.z *= 0.56 / r; } }
+    }
+  }
   _updatePour(dt) {
     const P = this.pour; if (!P) return;
     const ing = P.ing;
@@ -624,7 +663,7 @@ export class Game {
   }
   endDecorate() {
     if (!this.decorating) return;
-    this.decorating = false;
+    this.decorating = false; this.art.rest();
     this.emit('decorate', false); this.emit('changed');
   }
 
@@ -638,7 +677,7 @@ export class Game {
   }
   endDrink() {
     if (!this.drinking) return;
-    this.drink.stopPour();
+    this.drink.stopPour(); this.shelf.clearMarks();
     this.drinking = false; this.drink.group.visible = this.drink.ready;
     this.emit('drink', false); this.emit('changed');
   }
@@ -922,8 +961,8 @@ export class Game {
   }
   hint() {
     const h = this._hint(), o = this.order, cup = this.drink;
-    if (this.drinking) return { text: 'Hold a liquid to pour, then add extras 🍹' };
-    if (h && h.tool === 'serve' && o && o.drink && !cup.ready) return { text: `Don't forget: ${drinkById(o.drink).icon} ${drinkById(o.drink).name}! Tap 🍹 Drinks`, tool: 'drinks' };
+    if (this.drinking) return { text: 'Hold a bottle to pour · tap jars for extras · tap a cup to swap it 🍹' };
+    if (h && h.tool === 'serve' && o && o.drink && !cup.ready) return { text: `Don't forget: ${drinkById(o.drink).icon} ${drinkById(o.drink).name}! Make it from the drink shelf on the wall 🍹` };
     if (this.mode === 'free' && !this.foods.length && !this.ings.length && cup.ready && !this.servedLock) return { text: 'Tap Serve to enjoy it! 🛎️', tool: 'serve' };
     return h;
   }
@@ -931,7 +970,7 @@ export class Game {
     const o = this.target(), R = o.recipe, want = o.eggs || 1;
     if (this.mode === 'tutorial') { const st = S.TUTORIAL[this.tutStep]; return st ? { text: st.text, tool: st.tool } : null; }
     if (this.servedLock) return null;
-    if (this.decorating) return { text: 'Draw on the plate, or tap a shape or topping 🎨' };
+    if (this.decorating) { const t = this.art.tool; return { text: !t ? 'Pick up a sauce or a bowl, tap a shape, or use the cloth to wipe 🎨' : t.kind === 'sauce' ? `${artLabel(t.id)}: draw on the plate` : `${artLabel(t.id)}: tap the plate` }; }
     if (!this.panOnBurner) return { text: 'Put the pan back on the burner to heat it 🔥' };
     const pans = this.ings.filter((i) => i.loc === 'pan'), rice = pans.find((i) => i.kind === 'rice');
     const panFoods = this.foodsAt('pan').filter((f) => f.landed), plateFoods = this.foodsAt('plate'), cf = this.carryFood;
@@ -1021,7 +1060,7 @@ export class Game {
     }
     if (pans.length) return { text: pancake ? 'Watch for bubbles on top…' : 'Cooking… watch the chip' };
     const need = S.artNeeds(o, this.art.used);
-    if (need.length) return { text: `Tap 🎨 Decorate and add ${artLabel(need[0])}`, tool: 'decorate' };
+    if (need.length) return { text: `Add ${artLabel(need[0])} from the caddy in front of the plate 🎨` };
     return { text: 'Looks great — tap Serve! 🛎️', tool: 'serve' };
   }
 
@@ -1035,7 +1074,7 @@ export class Game {
       a.step && a.step(k, dt);
       if (k >= 1) { this.anims.splice(i, 1); a.done && a.done(); }
     }
-    this._updatePour(dt); this.drink.update(dt);
+    this._updatePour(dt); this._settleStacks(dt); this.drink.update(dt);
     this.fx.update(dt);
     this.kitchen.updateFlames(this.heat, this.time);
     const turn = this.kitchen.knob.userData.turn;

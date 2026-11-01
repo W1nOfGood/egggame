@@ -38,6 +38,9 @@ export class DrinkCup {
     this.group.add(this.liquid, this.surface, this.fixed, this.body);
     this.pool = Array.from({ length: MAX_LAYERS }, () => { const m = new THREE.Mesh(G.unit, new THREE.MeshPhysicalMaterial({ roughness: 0.18, clearcoat: 0.8 })); m.visible = false; this.liquid.add(m); return m; });
     this.stream = new THREE.Mesh(G.unit, new THREE.MeshPhysicalMaterial({ roughness: 0.2, clearcoat: 0.8 })); this.stream.visible = false; this.group.add(this.stream);
+    this.pourer = new THREE.Group(); this.pourer.visible = false; this.group.add(this.pourer);
+    this.pourerMat = new THREE.MeshPhysicalMaterial({ roughness: 0.25, clearcoat: 1 });
+    const pb = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.13, 0], [0.145, 0.04], [0.145, 0.3], [0.06, 0.42], [0.05, 0.55], [0.001, 0.55]].map(([x, y]) => new THREE.Vector2(x, y)), 16), this.pourerMat); pb.castShadow = true; this.pourer.add(pb);
     this.cupId = 'glass'; this.pouring = null; this._t = 0; this._steam = 0;
     this.clear(); this.setCup('glass');
   }
@@ -49,6 +52,7 @@ export class DrinkCup {
 
   clear() {
     this.amounts = {}; this.layers = []; this.extras = []; this.fill = 0; this.spilled = false; this.stirred = false; this.pouring = null;
+    if (this.pourer) this.pourer.visible = false; this.stream.visible = false;
     this.group.visible = !!this.game.drinking;
     this._layout(); this._buildExtras();
   }
@@ -83,9 +87,10 @@ export class DrinkCup {
     this.pouring = id; this._t = 0; this.stirred = false;
     const last = this.layers[this.layers.length - 1];
     if (!last || last.id !== id) { if (this.layers.length >= MAX_LAYERS) this.stirred = true; this.layers.push({ id, amt: 0 }); }
-    this.stream.material.color.set(LIQUIDS[id].color);
+    this.stream.material.color.set(LIQUIDS[id].color); this.pourerMat.color.set(LIQUIDS[id].color);
+    this._layout();
   }
-  stopPour() { if (!this.pouring) return; this.pouring = null; this.stream.visible = false; this.game.emit('changed'); }
+  stopPour() { if (!this.pouring) return; this.pouring = null; this.stream.visible = false; this.pourer.visible = false; this.game.emit('changed'); }
   update(dt) {
     if (!this.group.visible) return;
     if (this.pouring) {
@@ -140,8 +145,10 @@ export class DrinkCup {
     const lvl = s.floor + this.fill * s.h, r = this._radius(this.fill);
     this.surface.position.y = lvl; this.surface.scale.setScalar(r / 0.25);
     if (this.pouring) {
-      const top = s.floor + s.h + 1.1;
+      const top = s.floor + s.h + 0.75;
       this.stream.visible = true; this.stream.position.set(0, lvl, 0); this.stream.scale.set(0.035, top - lvl, 0.035);
+      // bottle tipped so its mouth is right above the stream
+      this.pourer.visible = true; this.pourer.rotation.z = 2.25; this.pourer.position.set(0.43, top + 0.35, 0);
     }
   }
 

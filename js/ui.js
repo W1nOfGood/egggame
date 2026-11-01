@@ -11,7 +11,7 @@ import { REGULARS, regularById, heartsFor, HEART_MAX } from './customers.js';
 import { LOVE_NOTES } from './lovenotes.js';
 import { DrinkBar } from './drinkbar.js';
 import { drinkById } from './drinklist.js';
-import { SAUCES, TOPPINGS, STAMPS, artLabel } from './art.js';
+import { artLabel } from './art.js';
 import { ALBUM_MAX, albumAll, albumCount, albumDelete, albumPut, calendarHTML, checkIn, streakOf, toJpeg } from './scrapbook.js';
 
 /** Today's special: one dish per calendar day, the same for everyone. */
@@ -192,26 +192,10 @@ export class UI {
     this._photo = null; this.openScrapbook();
   }
 
-  // ---------- plate art panel ----------
+  // ---------- plate art: everything is in the 3D caddy, this is just the way out ----------
   _bindArt() {
-    const art = this.game.art, opt = (d, id, icon, name) => `<button class="art-opt" data-${d}="${id}" title="${name}" aria-label="${name}">${icon}</button>`;
-    $('art-sauces').innerHTML = SAUCES.map((a) => opt('sauce', a.id, a.icon, a.name)).join('');
-    $('art-tops').innerHTML = TOPPINGS.map((a) => opt('top', a.id, a.icon, a.name)).join('');
-    $('art-stamps').innerHTML = STAMPS.map((a) => opt('stamp', a.id, a.icon, a.id)).join('');
-    const mark = () => document.querySelectorAll('#art-panel .art-opt').forEach((b) => b.classList.toggle('on', (art.tool.kind === 'sauce' && b.dataset.sauce === art.tool.id) || (art.tool.kind === 'top' && b.dataset.top === art.tool.id)));
-    $('art-panel').addEventListener('click', (e) => {
-      const b = e.target.closest('button'); if (!b) return;
-      audio.pop();
-      if (b.dataset.sauce) art.tool = { kind: 'sauce', id: b.dataset.sauce };
-      else if (b.dataset.top) art.tool = { kind: 'top', id: b.dataset.top };
-      else if (b.dataset.stamp) art.stamp(b.dataset.stamp);
-      else if (b.id === 'art-undo') art.undo();
-      else if (b.id === 'art-clear') { art.clear(); this.game.emit('changed'); }
-      else if (b.id === 'art-done') this.game.endDecorate();
-      mark();
-    });
-    mark();
-    this.game.on('decorate', (on) => { $('hud').classList.toggle('decorating', on); $('art-panel').classList.toggle('hidden', !on); this.onDecorate && this.onDecorate(on); });
+    $('art-done').addEventListener('click', () => { audio.pop(); this.game.endDecorate(); });
+    this.game.on('decorate', (on) => { $('hud').classList.toggle('decorating', on); $('art-done').classList.toggle('hidden', !on); this.onDecorate && this.onDecorate(on); });
   }
 
   // ---------- shop ----------
