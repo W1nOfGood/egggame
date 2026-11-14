@@ -27,7 +27,7 @@ export const ING = {
   bread:   { name: 'Toast',   icon: '🍞', R: 0.5,  rate: 1.1,  brown: 1.7,  levels: { toasted: { label: 'golden', w: [0.55, 0.95] } } },
   tomato:  { name: 'Tomato',  icon: '🍅', R: 0.48, rate: 0.85, brown: 1.0,  levels: { grilled: { label: 'grilled', w: [0.5, 0.95] } } },
   pancake: { name: 'Pancake', icon: '🥞', R: 0.46, rate: 1.0,  brown: 1.0,  levels: { golden: { label: 'golden', w: [0.5, 0.95] } } },
-  waffle:  { name: 'Waffle',  icon: '🧇', R: 0.48, rate: 1.0,  brown: 1.0,  levels: { golden: { label: 'golden', w: [0.55, 0.95] } } },
+  waffle:  { name: 'Waffle',  icon: '🧇', R: 0.4, rate: 1.0,  brown: 1.0,  levels: { golden: { label: 'golden', w: [0.55, 0.95] } } },
   frenchtoast: { name: 'French toast', icon: '🥪', R: 0.5, rate: 1.0, brown: 1.3, levels: { golden: { label: 'golden', w: [0.55, 0.95] } } },
 };
 /** Several of these can share the pan and they stack on the plate (value = height of each layer). */
@@ -191,9 +191,9 @@ export class Ingredient {
     this._tex(128, 128);
     this.mat = new THREE.MeshPhysicalMaterial({ map: this.tex, roughness: 0.6, clearcoat: 0.2 });
     this.rimMat = new THREE.MeshPhysicalMaterial({ color: '#e0a552', roughness: 0.65 });
-    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.1, 48), [this.rimMat, this.mat, this.mat]);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.09, 40), [this.rimMat, this.mat, this.mat]);
     disc.position.y = 0.06; disc.castShadow = true; disc.receiveShadow = true; this.inner.add(disc);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.05, 10, 56), this.rimMat); rim.rotation.x = Math.PI / 2; rim.position.y = 0.06; rim.castShadow = true; this.inner.add(rim);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.045, 8, 40), this.rimMat); rim.rotation.x = Math.PI / 2; rim.position.y = 0.06; rim.castShadow = true; this.inner.add(rim);
   }
   _refreshWaffle(ck, br) {
     const c = this.ctx, k = clamp01(ck);

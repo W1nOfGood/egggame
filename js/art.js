@@ -1,6 +1,7 @@
 // Plate art: squeeze sauces onto a plated dish and drop toppings on it. Sauce is a chain of glossy beads placed
 // where the pointer ray hits the food, so it follows the real shape of whatever is on the plate.
 import * as THREE from 'three';
+import { mergeStatic } from './merge.js';
 import { RoundedBoxGeometry } from 'three/addons/RoundedBoxGeometry.js';
 import { PLATE } from './config.js';
 import { audio } from './audio.js';
@@ -108,6 +109,7 @@ export class PlateArt {
       const hit = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, 0.34), hitMat); hit.position.y = hh / 2; box.add(hit);
       const it = { kind, id, group: box, home: box.position.clone() };
       box.traverse((o) => { o.userData.interact = 'artItem'; o.userData.artItem = it; });
+      mergeStatic(box, () => false, ['artItem'], () => true); // one draw call per item instead of several (they only ever move as a whole)
       caddy.add(box); this.items.push(it);
     };
     const X = (i) => -0.97 + i * 0.388;
