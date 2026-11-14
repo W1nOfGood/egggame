@@ -9,6 +9,9 @@ import { Ingredient, ING, STACKS } from './ingredients.js';
 import { PlateArt, makeJug, artLabel } from './art.js';
 import { DrinkCup } from './drinks.js';
 import { DrinkShelf } from './drinkshelf.js';
+import { WaffleIron } from './waffle.js';
+import { seedOf, withSeed } from './progress.js';
+import { dayKey } from './scrapbook.js';
 import { CUPS, EXTRAS, LIQUIDS, drinkById } from './drinklist.js';
 import * as S from './scoring.js';
 import { audio } from './audio.js';
@@ -40,6 +43,8 @@ export class Game {
     this.art = new PlateArt(this); this.decorating = false;
     this.pour = null;
     this.drinking = false; this.drinkGoal = null; this.drink = new DrinkCup(this); this.shelf = new DrinkShelf(this);
+    this.waffle = new WaffleIron(this);
+    this.variant = null; this.lives = 3; this.combo = 0; this.maxCombo = 0; // Rush Hour / Daily Challenge
   }
   on(e, f) { (this.listeners[e] ||= []).push(f); }
   emit(e, d) { (this.listeners[e] || []).forEach((f) => f(d)); }
@@ -75,11 +80,17 @@ export class Game {
   // ---------------- modes & orders ----------------
   start(mode) {
     // Cozy Mode is an order round with no clock and gentler browning
-    this.cozy = mode === 'cozy'; if (this.cozy) mode = 'orders';
+    // Rush Hour and the Daily Challenge are order rounds too, with their own rules
+    this.cozy = mode === 'cozy'; this.variant = mode === 'rush' || mode === 'daily' ? mode : null;
+    if (this.cozy || this.variant) mode = 'orders';
+    this.lives = 3; this.combo = 0; this.maxCombo = 0;
     this.mode = mode; this.paused = false; this.freeGoal = null; this.drinkGoal = null;
     this.resetKitchen();
     this.results = []; this.roundScore = 0; this.servedCount = 0; this.tutStep = 0;
-    if (mode === 'orders') { this.orders = S.makeRound(this.settings && this.settings.hearts); this.setOrder(0); }
+    const hearts = (this.settings && this.settings.hearts) || {}, opts = this.unlockOpts ? this.unlockOpts() : {};
+    if (this.variant === 'rush') { this.orders = [S.rushOrder(0, hearts, opts)]; this.setOrder(0); }
+    else if (this.variant === 'daily') { this.orders = withSeed(seedOf('daily ' + dayKey()), () => S.makeRound({}, { level: 99, season: opts.season })); this.setOrder(0); } // the same for everyone today
+    else if (mode === 'orders') { this.orders = S.makeRound(hearts, opts); this.setOrder(0); }
     else if (mode === 'tutorial') { this.orders = [S.tutorialOrder()]; this.setOrder(0); }
     else { this.orders = []; this.order = null; }
     this.emit('mode', mode); this.emit('changed');
@@ -87,7 +98,7 @@ export class Game {
   setOrder(i) { this.orderIdx = i; this.order = this.orders[i]; this.orderTime = 0; this.emit('order', this.order); }
   resetKitchen() {
     this.endDecorate(); this.endPour(); this.art.clear();
-    this.endDrink(); this.drink.clear();
+    this.endDrink(); this.drink.clear(); this.waffle.reset();
     this.clearFood(true); this.clearButter(); this.clearIngs(true);
     this.setHeat(0, true); this.panTemp = ROOM_TEMP;
     this.fx.clear();
@@ -537,7 +548,7 @@ export class Game {
       audio.plop();
       if (soft) { // a soft landing: it squashes and wobbles back
         this.anim(0.32, (t) => { if (ing.loc !== 'pan') return; const w = Math.sin(t * Math.PI * 2.5) * (1 - t) * 0.22; g.scale.set(1 + w, 1 - w * 1.4, 1 + w); }, () => { if (ing.loc === 'pan') g.scale.setScalar(1); });
-        if (turns > 1) this.toast(`Triple flip! ${ING[ing.kind].icon}✨`, 'good');
+        if (turns > 1) { this.emit('stat', 'triple'); this.toast(`Triple flip! ${ING[ing.kind].icon}✨`, 'good'); }
       }
       if (ing.messy && ing.flips === 1) { audio.tear(); this.toast('Flipped too early — it smeared! 😬', 'bad'); }
       else if (ing.flips === 1 && turns === 1) this.toast(`Nice flip! ${ING[ing.kind].icon}`, 'good');
@@ -668,6 +679,23 @@ export class Game {
     this.emit('decorate', false); this.emit('changed');
   }
 
+  // ---------------- Rush Hour ----------------
+  /** A Rush Hour customer gave up waiting: lose a life and the combo, clear the kitchen and bring in the next one. */
+  _customerLeft() {
+    const left = this.order;
+    this.lives--; this.combo = 0;
+    audio.fail();
+    this.endDecorate(); this.endDrink(); this.endPour();
+    this.art.clear(); this.drink.clear(); this.waffle.reset();
+    this.clearFood(false); this.clearIngs(false); this.clearButter();
+    this.emit('left', { order: left, lives: this.lives });
+    if (this.lives <= 0) { this.mode = 'results'; this.emit('roundOver', { total: this.roundScore, results: this.results, variant: 'rush', maxCombo: this.maxCombo }); return; }
+    const opts = this.unlockOpts ? this.unlockOpts() : {};
+    this.orders.push(S.rushOrder(this.results.length, (this.settings && this.settings.hearts) || {}, { ...opts, last: left.id }));
+    this.setOrder(this.orderIdx + 1);
+    this.emit('changed');
+  }
+
   // ---------------- drinks ----------------
   /** A progress chip over the cup and over everything the recipe still needs, like the ones over food in the pan. */
   _drinkChips() {
@@ -738,6 +766,11 @@ export class Game {
   /** One entry per thing cooking: [{key, cls, label, p, obj}] for the progress chips. */
   guideList() {
     if (this.drinking) return this._drinkChips();
+    const out = this._cookChips(), w = this.waffle.chip();
+    if (w) out.push(w);
+    return out;
+  }
+  _cookChips() {
     const o = this.target(), out = [], panEggs = this.foods.filter((f) => f.loc === 'pan' || f.loc === 'spatula');
     panEggs.forEach((f, n) => {
       const st = S.guideState(f, o); let { cls, label } = st;
@@ -941,18 +974,27 @@ export class Game {
     this.anim(0.5, (t) => { plate.position.y = y0 + Math.sin(Math.PI * t) * 0.35; plate.rotation.y = Math.sin(Math.PI * t) * 0.3; }, () => { plate.position.y = y0; plate.rotation.y = 0; });
     if (this.mode === 'free' && !this.freeGoal) { this.emit('served', { free: true, text: foods.length || ings.length ? S.describe(foods, ings) : '', food: foods[0], drink }); return; }
     if (this.mode === 'free') { const result = S.evaluate(foods, this.freeGoal, { ings, art }); this.emit('served', { result, order: this.freeGoal, quote: S.describe(foods, ings), food: foods[0], drink }); return; }
-    const late = this.mode === 'orders' && !this.cozy && this.orderTime > this.order.patience;
+    const late = this.mode === 'orders' && !this.cozy && this.variant !== 'rush' && this.orderTime > this.order.patience;
     const result = S.evaluate(foods, this.order, { late, ings, art });
+    if (this.variant === 'rush') { // good dishes in a row build a combo that multiplies the score
+      const mult = result.stars >= 2 ? 1 + 0.25 * Math.min(this.combo, 8) : 1;
+      this.combo = result.stars >= 2 ? this.combo + 1 : 0; this.maxCombo = Math.max(this.maxCombo, this.combo);
+      result.rush = { mult, points: Math.round(result.total * mult), combo: this.combo };
+    }
     this.results.push({ order: this.order, result });
-    this.roundScore += result.total;
+    this.roundScore += result.rush ? result.rush.points : result.total;
     this.emit('served', { result, order: this.order, quote: this.order.custId ? reaction(regularById(this.order.custId), result.stars) : S.quoteFor(result.stars), food: foods[0], drink });
   }
   /** Called when the dish panel closes. */
   afterServe() {
     this.art.clear(); this.drink.clear();
     this.clearFood(false); this.clearButter(); this.clearIngs(false);
-    if (this.mode === 'orders') {
-      if (this.orderIdx + 1 >= this.orders.length) { this.emit('roundOver', { total: this.roundScore, results: this.results }); this.mode = 'results'; }
+    if (this.mode === 'orders' && this.variant === 'rush') {
+      const opts = this.unlockOpts ? this.unlockOpts() : {};
+      this.orders.push(S.rushOrder(this.results.length, (this.settings && this.settings.hearts) || {}, { ...opts, last: this.order.id }));
+      this.setOrder(this.orderIdx + 1);
+    } else if (this.mode === 'orders') {
+      if (this.orderIdx + 1 >= this.orders.length) { this.emit('roundOver', { total: this.roundScore, results: this.results, variant: this.variant }); this.mode = 'results'; }
       else this.setOrder(this.orderIdx + 1);
     } else if (this.mode === 'tutorial') { this.emit('tutorialDone'); }
     this.emit('changed');
@@ -1066,6 +1108,7 @@ export class Game {
   }
 
   _sweetHint(o) {
+    if (o.recipe === 'waffle') return this.waffle.hint(o);
     const kind = o.recipe, pancake = kind === 'pancake', name = ING[kind].name.toLowerCase();
     const pans = this.ings.filter((i) => i.kind === kind && i.loc === 'pan'), plated = this.ings.filter((i) => i.kind === kind && i.loc === 'plate').length, want = o.stack || 1;
     if (this.pour && this.pour.ing) return { text: 'Keep pouring for a bigger pancake, let go when you like it 🥞' };
@@ -1097,7 +1140,7 @@ export class Game {
       a.step && a.step(k, dt);
       if (k >= 1) { this.anims.splice(i, 1); a.done && a.done(); }
     }
-    this._updatePour(dt); this._settleStacks(dt); this.drink.update(dt);
+    this._updatePour(dt); this._settleStacks(dt); this.drink.update(dt); this.waffle.update(dt);
     this.fx.update(dt);
     this.kitchen.updateFlames(this.heat, this.time);
     const turn = this.kitchen.knob.userData.turn;
@@ -1173,6 +1216,7 @@ export class Game {
 
     // orders & tutorial
     if (this.mode === 'orders' && this.order && !this.decorating && !this.drinking) this.orderTime += dt; // art and drinks are never rushed
+    if (this.mode === 'orders' && this.variant === 'rush' && this.order && !this.servedLock && this.orderTime > this.order.patience) this._customerLeft();
     if (this.mode === 'tutorial') {
       const st = S.TUTORIAL[this.tutStep];
       if (st && st.done(this)) { this.tutStep++; audio.pop(); this.emit('tutorial', this.tutStep); }

@@ -75,7 +75,7 @@ export function buildToys({ game, kitchen, decor, scene, ctx }) {
   register(books, { drag: true, r: 0.62, tap: () => { audio.pick(); wiggle(books, 0.05, 0.4); ctx.openBook(); } });
 
   // a fruit bowl: the fruit jumps
-  const fruit = spot(-0.72, 2.72);
+  const fruit = spot(-4.95, 0.55);
   fruit.add(turned([[0.001, 0.03], [0.16, 0.03], [0.34, 0.14], [0.56, 0.3], [0.6, 0.34], [0.53, 0.31], [0.3, 0.17], [0.001, 0.1]], M('#c9b6e4', { clearcoat: 1, roughness: 0.15 }), 40));
   const fm = { apple: M('#d62839', { clearcoat: 1, roughness: 0.2 }), green: M('#9acb4d', { clearcoat: 1, roughness: 0.25 }), plum: M('#5b2a86', { clearcoat: 1, roughness: 0.18 }), stem: M('#5c3d22') };
   [[-0.18, 0.31, 0.08, 0.18, fm.apple], [0.2, 0.3, 0.05, 0.17, fm.green], [0, 0.32, -0.18, 0.16, fm.plum], [0.02, 0.44, 0.08, 0.14, fm.apple]].forEach(([x, y, z, r, mat]) => {

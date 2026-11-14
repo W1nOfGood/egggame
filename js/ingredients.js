@@ -27,10 +27,11 @@ export const ING = {
   bread:   { name: 'Toast',   icon: '🍞', R: 0.5,  rate: 1.1,  brown: 1.7,  levels: { toasted: { label: 'golden', w: [0.55, 0.95] } } },
   tomato:  { name: 'Tomato',  icon: '🍅', R: 0.48, rate: 0.85, brown: 1.0,  levels: { grilled: { label: 'grilled', w: [0.5, 0.95] } } },
   pancake: { name: 'Pancake', icon: '🥞', R: 0.46, rate: 1.0,  brown: 1.0,  levels: { golden: { label: 'golden', w: [0.5, 0.95] } } },
+  waffle:  { name: 'Waffle',  icon: '🧇', R: 0.48, rate: 1.0,  brown: 1.0,  levels: { golden: { label: 'golden', w: [0.55, 0.95] } } },
   frenchtoast: { name: 'French toast', icon: '🥪', R: 0.5, rate: 1.0, brown: 1.3, levels: { golden: { label: 'golden', w: [0.55, 0.95] } } },
 };
 /** Several of these can share the pan and they stack on the plate (value = height of each layer). */
-export const STACKS = { pancake: 0.09, frenchtoast: 0.1 };
+export const STACKS = { pancake: 0.09, frenchtoast: 0.1, waffle: 0.11 };
 export const isIngredient = (k) => Object.prototype.hasOwnProperty.call(ING, k);
 
 let flakeGeo, pepperGeo, grainGeo, bitGeo, peaGeo, carrotGeo, hamGrain;
@@ -100,6 +101,7 @@ export class Ingredient {
     else if (k === 'cheese') this._buildCheese();
     else if (k === 'bread' || k === 'frenchtoast') this._buildBread();
     else if (k === 'pancake') this._buildPancake();
+    else if (k === 'waffle') this._buildWaffle();
     else if (k === 'tomato') this._buildTomato();
     else this._buildRice();
     flakeGeo = flakeGeo || new THREE.BoxGeometry(0.018, 0.012, 0.018);
@@ -184,6 +186,28 @@ export class Ingredient {
     const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.07, 48), [this.rimMat, this.mat, this.rimMat]);
     disc.position.y = 0.05; disc.castShadow = true; disc.receiveShadow = true; this.inner.add(disc);
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.036, 10, 56), this.rimMat); rim.rotation.x = Math.PI / 2; rim.position.y = 0.05; rim.castShadow = true; this.inner.add(rim);
+  }
+  _buildWaffle() {
+    this._tex(128, 128);
+    this.mat = new THREE.MeshPhysicalMaterial({ map: this.tex, roughness: 0.6, clearcoat: 0.2 });
+    this.rimMat = new THREE.MeshPhysicalMaterial({ color: '#e0a552', roughness: 0.65 });
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.1, 48), [this.rimMat, this.mat, this.mat]);
+    disc.position.y = 0.06; disc.castShadow = true; disc.receiveShadow = true; this.inner.add(disc);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.05, 10, 56), this.rimMat); rim.rotation.x = Math.PI / 2; rim.position.y = 0.06; rim.castShadow = true; this.inner.add(rim);
+  }
+  _refreshWaffle(ck, br) {
+    const c = this.ctx, k = clamp01(ck);
+    const base = C('#f2d694').lerp(C('#d69140'), smooth(0.1, 0.8, k)), pocket = base.clone().lerp(C('#8a5220'), 0.35 + 0.25 * k);
+    c.fillStyle = css(base); c.fillRect(0, 0, 128, 128);
+    // the grid of little pockets
+    for (let gx = 0; gx < 7; gx++) for (let gy = 0; gy < 7; gy++) {
+      const x = 8 + gx * 16.5, y = 8 + gy * 16.5;
+      c.fillStyle = css(pocket); c.fillRect(x + 2, y + 2, 11, 11);
+      c.fillStyle = 'rgba(255,240,200,.35)'; c.fillRect(x + 2, y + 2, 11, 2.5);
+    }
+    if (br > 0.3) { brownRamp(0.4 + br * 0.8, tmp); c.fillStyle = `rgba(${(tmp.r * 255) | 0},${(tmp.g * 255) | 0},${(tmp.b * 255) | 0},${clamp01((br - 0.3) * 2)})`; c.fillRect(0, 0, 128, 128); }
+    this.tex.needsUpdate = true;
+    this.rimMat.color.set('#ecc17a').lerp(tmp2.set('#c8853a'), k).lerp(BROWN, clamp01(this.maxBrown - 0.4));
   }
   _buildTomato() {
     this._tex(128, 128);
@@ -275,6 +299,7 @@ export class Ingredient {
     else if (k === 'cheese') this._refreshCheese();
     else if (k === 'bread' || k === 'frenchtoast') this._refreshBread(ck, br);
     else if (k === 'pancake') this._refreshPancake(ck, br);
+    else if (k === 'waffle') this._refreshWaffle(ck, br);
     else if (k === 'tomato') this._refreshTomato();
     else this._refreshRice();
   }

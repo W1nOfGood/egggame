@@ -43,6 +43,13 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 ## How to play
 
 - **Order Mode**: 5 customers, each scored out of 100 (recipe 30 · doneness 40 · condition 20 · seasoning 10).
+- **⚡ Rush Hour**: endless customers who get pickier and less patient. A customer who waits too long leaves and costs one of 3 lives; 2+ star dishes in a row build a combo (up to ×3). Best score is kept.
+- **📅 Daily Challenge**: the same 5 orders for everyone each day (seeded by the date). Your best for today and the number of dailies finished are kept.
+- **Chef ranks**: every dish earns XP (its score, +20 for 3 stars, plus a bit for drinks). Levels go Egg → Bronze → Silver → Gold → Platinum → Master, and new recipes unlock as you level up (Tomato Baked Eggs, Classic Waffle, Ham & Cheese Scramble, Berry Cream Waffles, Sausage & Egg Toastie, Midnight Waffles). Existing saves start with XP for everything already cooked.
+- **🧇 Waffle iron** (the pink one in front of the stove): tap to pour and close, watch the light (amber cooking, green golden, red burning), tap to open and the waffle hops onto the plate. It cooks on its own while you use the pan.
+- **🐈‍⬛ Noxie care**: pet Noxie, feed treats from the pink bowl (every 90 s at most) and roll the yarn ball. Mood drifts down slowly between visits; a happy Noxie (70%+) cheers you on for +🪙2 a dish. Noxie learns 5 tricks (spin, wing wave, pounce, backflip, sing) and watches whatever you're cooking.
+- **🏆 Trophies**: 28 achievements, shown as cups on the trophy shelf above the cutting board (tap it) and on the Trophies screen with your rank, stats and Noxie's tricks.
+- **Seasons**: decorations on top of the fridge and the window sill follow the calendar (spring, summer, autumn, winter, plus Halloween and Christmas touches), with a seasonal recipe each season. Settings → Season can pick one by hand.
 - **🌙 Cozy Mode**: an order round with no timers and gentler browning.
 - **🌹 Secret Admirer**: a special regular who comes in every shift (favourite: Sunday Short Stack). Every 2 hearts unlocks a love note, read from 💌 Regulars. The letters live in `js/lovenotes.js`: rewrite them in your own words and run `node build.mjs`.
 - **🎨 Decoration caddy**: the wooden caddy in front of the plate holds real squeeze bottles (ketchup, sriracha, mayo, maple syrup, chocolate, berry coulis), topping bowls (blueberries, strawberry hearts, whipped cream, chives, sprinkles, sugar skulls), shape cutters and a cloth. Once something is on the plate, press a bottle or bowl and drag onto the dish, press a cutter to squeeze that shape, or press the cloth to wipe the last thing off. Art follows the real shape of the food, shows up in photos, adds +🪙3, and the order clock stops while you decorate.
@@ -98,6 +105,10 @@ Tip: on iPad, use Share → **Add to Home Screen** for a full-screen, app-like e
 | `js/drinkshelf.js` | the 3D drink shelf on the wall (one merged mesh plus invisible press targets) |
 | `js/drinkbar.js` | the status card, the Drink Menu screen and drink tips |
 | `js/toys.js` | every decoration's touch reaction, plus the extra decorations |
+| `js/progress.js` | XP, ranks, seasons, the daily seed and the trophy list (no rendering) |
+| `js/career.js` | rank on the title screen, rewards after each dish, the trophy shelf and screen, seasonal decorations |
+| `js/waffle.js` | the 3D waffle iron |
+| `js/noxcare.js` | Noxie's treat bowl, yarn ball, mood and tricks |
 | `js/lovenotes.js` | the Secret Admirer's letters (safe to edit) |
 | `js/scrapbook.js` | daily visits, streak and Noxie's gift; the photo album in IndexedDB |
 | `js/ingredients.js` | bacon, ham, sausage, cheese, rice, toast and tomato: simulation (per-side cooking, browning, tossing) and procedural visuals |

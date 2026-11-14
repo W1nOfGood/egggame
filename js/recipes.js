@@ -166,6 +166,68 @@ export const BOOK = [
     steps: [S.butter, S.heat(4), ['Add', 'Tap 🥪 French toast twice.'], ['Flip', 'Flip each slice when its chip turns blue.'], stackUp, dress('🍇 berry coulis, 🍓 strawberries and 🍦 whipped cream')],
     tip: 'Sauce first, then the toppings on top of it.',
   },
+  // ---- unlocked as you level up
+  {
+    id: 'shakshuka', title: 'Tomato Baked Eggs', icon: '🍅', cat: 'eggs', recipe: 'sunny', levels: ['runny', 'jammy'], eggs: 2, extras: [{ kind: 'tomato', level: 'grilled' }], fill: [], salt: true, pepper: true, diff: 2, time: '5 min', unlock: 2,
+    blurb: 'Two eggs set gently next to jammy blistered tomatoes, with plenty of pepper.',
+    steps: [side('tomato', 'grilled'), S.butter, S.crackN(2), ['Watch', 'Keep the yolks soft while the tomatoes blister.'], ['Plate', 'Plate the tomatoes, then both eggs.'], S.season(true, true)],
+    tip: 'Give the tomatoes a head start, they take longer than the eggs.',
+  },
+  {
+    id: 'waffle', title: 'Classic Waffle', icon: '🧇', cat: 'sweet', recipe: 'waffle', levels: ['golden'], eggs: 0, stack: 1, toppings: ['syrup'], extras: [], fill: [], salt: false, pepper: false, diff: 1, time: '2 min', unlock: 3,
+    blurb: 'One crisp, golden waffle from the waffle iron, with a pool of maple syrup in every pocket.',
+    steps: [['Iron', 'Tap the pink waffle iron in front of the stove: it pours the batter and closes.'], ['Wait', 'Watch the light on the front: amber while it cooks, green when it\'s golden.'], ['Open', 'Tap the iron again when the light is green and the waffle hops onto the plate.'], dress('🍁 maple syrup')],
+    tip: 'Don\'t wait for red! A green light means golden.',
+  },
+  {
+    id: 'hamcheesescramble', title: 'Ham & Cheese Scramble', icon: '🧀', cat: 'eggs', recipe: 'scrambled', levels: ['soft', 'medium'], eggs: 3, extras: [], fill: ['ham', 'cheese'], salt: true, pepper: true, diff: 3, time: '5 min', unlock: 4,
+    blurb: 'Three eggs scrambled soft with seared ham and melted cheese stirred through.',
+    steps: [S.butter, S.heat(4), S.crackN(3), ['Stir', 'Stir slow circles until the eggs start to curd.'], ['Fillings', 'Add 🍖 Ham and 🧀 Cheese and keep stirring: they fold right in.'], ['Scoop', 'Scoop it out over the rim onto the plate.'], S.season(true, true)],
+    tip: 'Add the fillings once the eggs are half set, so they warm through without drying out.',
+  },
+  {
+    id: 'berrywaffles', title: 'Berry Cream Waffles', icon: '🍓', cat: 'sweet', recipe: 'waffle', levels: ['golden'], eggs: 0, stack: 2, toppings: ['whip', 'strawberry'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min', unlock: 5,
+    blurb: 'Two waffles stacked under whipped cream and heart-shaped strawberry slices.',
+    steps: [['Iron', 'Tap the waffle iron to pour, wait for green, tap again. Do it twice.'], ['Stack', 'The second waffle lands on top of the first.'], dress('🍦 whipped cream and 🍓 strawberries')],
+    tip: 'Make the pan dish first if you have one: the iron can cook while you work.',
+  },
+  {
+    id: 'sausagetoastie', title: 'Sausage & Egg Toastie', icon: '🌭', cat: 'breakfast', recipe: 'over', levels: ['easy', 'medium'], eggs: 1, extras: [{ kind: 'sausage', level: 'browned' }, { kind: 'bread', level: 'toasted' }], fill: [], salt: false, pepper: true, diff: 3, time: '6 min', unlock: 6,
+    blurb: 'An over-easy egg on golden toast with a browned sausage. Big Sunday energy.',
+    steps: [side('sausage'), side('bread', 'golden'), S.butter, S.crack, ['Flip', 'Flip the egg when its chip says “Flip it!”.'], ['Plate', 'Plate the toast, sausage and egg.'], S.season(false, true)],
+    tip: 'Sausage first, it takes the longest.',
+  },
+  {
+    id: 'midnightwaffles', title: 'Midnight Waffles', icon: '🦇', cat: 'sweet', recipe: 'waffle', levels: ['golden'], eggs: 0, stack: 2, toppings: ['choc', 'skull'], extras: [], fill: [], salt: false, pepper: false, diff: 3, time: '5 min', unlock: 8,
+    blurb: 'Two dark-golden waffles, chocolate sauce and a sugar skull. For night owls only.',
+    steps: [['Iron', 'Make two waffles in the waffle iron.'], dress('🍫 chocolate sauce and a 💀 sugar skull')],
+    tip: 'The ☠️ cutter in the caddy draws the skull in chocolate too.',
+  },
+  // ---- seasonal: always in the book, only ordered in their season
+  {
+    id: 'harvestwaffles', title: 'Harvest Maple Waffles', icon: '🍂', cat: 'sweet', recipe: 'waffle', levels: ['golden'], eggs: 0, stack: 2, toppings: ['syrup', 'whip'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min', season: 'autumn',
+    blurb: 'Autumn special: two waffles with maple syrup and a cloud of cream.',
+    steps: [['Iron', 'Make two waffles in the waffle iron.'], dress('🍁 maple syrup and 🍦 whipped cream')],
+    tip: 'Pumpkin Spice Latte on the side, obviously.',
+  },
+  {
+    id: 'snowcakes', title: 'Snowy Berry Pancakes', icon: '❄️', cat: 'sweet', recipe: 'pancake', levels: ['golden'], eggs: 0, stack: 3, toppings: ['whip', 'blueberry', 'sprinkles'], extras: [], fill: [], salt: false, pepper: false, diff: 3, time: '5 min', season: 'winter',
+    blurb: 'Winter special: a tall stack under a snowdrift of cream, blueberries and sprinkles.',
+    steps: [S.butter, S.heat(4), pour(3), sweetFlip, stackUp, dress('🍦 whipped cream, 🫐 blueberries and 🌈 sprinkles')],
+    tip: 'Cream first, then the berries and sprinkles on top of the snow.',
+  },
+  {
+    id: 'blossomcakes', title: 'Blossom Pancakes', icon: '🌸', cat: 'sweet', recipe: 'pancake', levels: ['golden'], eggs: 0, stack: 2, toppings: ['strawberry', 'whip'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min', season: 'spring',
+    blurb: 'Spring special: two pancakes with cream and strawberry hearts, like a little bouquet.',
+    steps: [S.butter, S.heat(4), pour(2), sweetFlip, stackUp, dress('🍦 whipped cream and 🍓 strawberries')],
+    tip: 'Scatter the strawberries in a ring for a flower.',
+  },
+  {
+    id: 'sunwaffles', title: 'Sunshine Waffles', icon: '🌻', cat: 'sweet', recipe: 'waffle', levels: ['golden'], eggs: 0, stack: 2, toppings: ['strawberry', 'blueberry'], extras: [], fill: [], salt: false, pepper: false, diff: 2, time: '4 min', season: 'summer',
+    blurb: 'Summer special: two waffles piled with fresh berries.',
+    steps: [['Iron', 'Make two waffles in the waffle iron.'], dress('🍓 strawberries and 🫐 blueberries')],
+    tip: 'Iced lemonade is the right drink for this one.',
+  },
 ];
 
 export const bookById = (id) => BOOK.find((b) => b.id === id);

@@ -15,6 +15,8 @@ import { Atmos } from './atmos.js';
 import { buildDecor } from './decor.js';
 import { equipAll } from './shop.js';
 import { buildToys } from './toys.js';
+import { NoxCare } from './noxcare.js';
+import { Career } from './career.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('scene');
@@ -208,6 +210,9 @@ function boot() {
   game.on('served', (d) => { const st = d && d.result ? d.result.stars : 3; setTimeout(() => decor.react(st), 700); });
   game.settings = settings;
   buildToys({ game, kitchen, decor, scene, ctx: { openBook: () => ui.openBook(), openScrapbook: () => ui.openScrapbook(), nextWeather: () => ui.nextWeather() } });
+  ui.nox = new NoxCare({ game, decor, scene, settings, save: () => saveSettings(settings) });
+  ui.career = new Career({ game, ui, scene });
+  ui._updateBest();
 
   // ---------- plate art camera ----------
   // Glide in above the plate while decorating, and back to wherever the player was afterwards.
@@ -274,6 +279,7 @@ function boot() {
     game.camAz = controls.getAzimuthalAngle();
     game.update(dt);
     atmos.update(dt);
+    decor.look(interactor.drag && interactor.drag.kind === 'spatula' ? props.spatula.position : props.pan.position); // Noxie watches the cooking
     decor.update(dt, camera);
     ui.update(dt, camera);
     // the sun shadow refreshes every frame on fast devices, less often on slow ones

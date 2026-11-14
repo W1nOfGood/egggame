@@ -9,12 +9,12 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const CAT_NAME = Object.fromEntries(CATS);
 const dots = (n) => `<span class="diff" aria-label="Difficulty ${n} of 3">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 const DIFF = ['', 'Easy', 'Medium', 'Chef'];
-const qty = (b) => (!b.stack ? `${b.eggs} egg${b.eggs > 1 ? 's' : ''}` : b.recipe === 'pancake' ? `${b.stack} pancake${b.stack > 1 ? 's' : ''}` : `${b.stack} slices`);
+const qty = (b) => (!b.stack ? `${b.eggs} egg${b.eggs > 1 ? 's' : ''}` : b.recipe === 'pancake' || b.recipe === 'waffle' ? `${b.stack} ${b.recipe}${b.stack > 1 ? 's' : ''}` : `${b.stack} slice${b.stack > 1 ? 's' : ''}`);
 
 export class RecipeBook {
   /** onCook(id) starts a practice round for that dish; onClose() is called after the book hides. */
-  constructor({ onCook, onClose, progress = () => ({}), daily = () => null }) {
-    this.onCook = onCook; this.onClose = onClose; this.progress = progress; this.daily = daily;
+  constructor({ onCook, onClose, progress = () => ({}), daily = () => null, lock = () => null }) {
+    this.onCook = onCook; this.onClose = onClose; this.progress = progress; this.daily = daily; this.lock = lock;
     this.cat = 'all'; this.sel = 'sunny'; this.canCook = true;
     $('book-close').addEventListener('click', () => this.close());
     $('screen-book').addEventListener('click', (e) => { if (e.target.id === 'screen-book') this.close(); });
@@ -40,7 +40,7 @@ export class RecipeBook {
     $('book-list').innerHTML = list.map((b) => `
       <li class="book-item${b.id === this.sel ? ' on' : ''}" data-id="${b.id}" role="button" tabindex="0">
         <span class="bi-ico">${b.icon}</span>
-        <span class="bi-txt"><b>${esc(b.title)}${b.id === this.daily() ? ' <em class="bi-special">✨ special</em>' : ''}</b><small>${CAT_NAME[b.cat]} · ${qty(b)} · ${b.time}${this._best(b.id) ? ' · ' + '⭐'.repeat(this._best(b.id)) : ''}</small></span>${this._best(b.id) >= 3 ? '<span class="bi-sticker" title="Mastered">🏅</span>' : ''}
+        <span class="bi-txt"><b>${esc(b.title)}${b.id === this.daily() ? ' <em class="bi-special">✨ special</em>' : ''}</b><small>${this.lock(b) ? (this.lock(b).block ? '🔒 ' : '🗓️ ') : ''}${CAT_NAME[b.cat]} · ${qty(b)} · ${b.time}${this._best(b.id) ? ' · ' + '⭐'.repeat(this._best(b.id)) : ''}</small></span>${this._best(b.id) >= 3 ? '<span class="bi-sticker" title="Mastered">🏅</span>' : ''}
         ${dots(b.diff)}
       </li>`).join('');
     const sel = $('book-list').querySelector('.on'); if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -82,7 +82,8 @@ export class RecipeBook {
       <h4>How to make it</h4>
       <ol class="bp-steps">${b.steps.map(([h, t], n) => `<li><span class="num">${n + 1}</span><div><b>${esc(h)}</b><p>${esc(t)}</p></div></li>`).join('')}</ol>
       <div class="bp-tip"><span>💡</span><div><b>Chef’s tip</b><p>${esc(b.tip)}</p></div></div>
-      ${this.canCook ? `<button id="bp-cook" class="big-btn primary bp-cook">🍳 Practice this in Free Cook</button>` : ''}
+      ${this.lock(b) ? `<p class="bp-lock">${esc(this.lock(b).text)}</p>` : ''}
+      ${this.canCook && !(this.lock(b) && this.lock(b).block) ? `<button id="bp-cook" class="big-btn primary bp-cook">🍳 Practice this in Free Cook</button>` : ''}
     `;
   }
 }

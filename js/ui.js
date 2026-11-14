@@ -10,15 +10,17 @@ import { SHOP, SHOP_CATS, DEFAULT_EQUIP, itemById } from './shop.js';
 import { REGULARS, regularById, heartsFor, HEART_MAX } from './customers.js';
 import { LOVE_NOTES } from './lovenotes.js';
 import { DrinkBar } from './drinkbar.js';
+import { SEASONS, best } from './progress.js';
 import { drinkById } from './drinklist.js';
 import { artLabel } from './art.js';
-import { ALBUM_MAX, albumAll, albumCount, albumDelete, albumPut, calendarHTML, checkIn, streakOf, toJpeg } from './scrapbook.js';
+import { ALBUM_MAX, albumAll, albumCount, albumDelete, albumPut, calendarHTML, checkIn, dayKey, streakOf, toJpeg } from './scrapbook.js';
 
 /** Today's special: one dish per calendar day, the same for everyone. */
 export function dailyId(d = new Date()) {
   let h = d.getFullYear() * 400 + d.getMonth() * 32 + d.getDate();
   h = Math.imul((h >>> 16) ^ h, 0x45d9f3b); h = Math.imul((h >>> 16) ^ h, 0x45d9f3b); h = (h >>> 16) ^ h;
-  return BOOK[Math.abs(h) % BOOK.length].id;
+  const pool = BOOK.filter((b) => !b.season && (b.unlock || 1) <= 1); // a dish anyone can cook, all year
+  return pool[Math.abs(h) % pool.length].id;
 }
 
 const $ = (id) => document.getElementById(id);
@@ -28,7 +30,7 @@ const _v = new THREE.Vector3();
 
 export function loadSettings() {
   const def = { music: 0.45, sfx: 0.8, guide: true, hints: true, quality: (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) ? 'high' : 'auto', atmos: 'plum', weather: 'rain', smooth: '120', radio: 0, best: 0, tutorialDone: false,
-    coins: 30, owned: [], equip: {}, hearts: {}, notes: [], dishes: {}, visits: [], lettersRead: [], drinks: {} };
+    coins: 30, owned: [], equip: {}, hearts: {}, notes: [], dishes: {}, visits: [], lettersRead: [], drinks: {}, rushBest: 0, daily: {}, dailyDays: [], season: 'auto' };
   try { return Object.assign(def, JSON.parse(localStorage.getItem(STORE) || '{}')); } catch { return def; }
 }
 export function saveSettings(s) { try { localStorage.setItem(STORE, JSON.stringify(s)); } catch { /* private mode */ } }
@@ -39,8 +41,8 @@ export class UI {
     this.game = game; this.ix = interactor; this.s = settings;
     this.onResetCamera = onResetCamera; this.onQuality = onQuality; this.onAtmos = onAtmos; this.onWeather = onWeather; this.perf = perf; this.decor = decor;
     this.hintT = 0; this.lastHint = '';
-    this.screens = ['title', 'pause', 'settings', 'dish', 'results', 'loading', 'nogl', 'shop', 'regulars', 'letter', 'scrapbook', 'photo', 'drinks'];
-    this.book = new RecipeBook({ onCook: (id) => this.practice(id), onClose: () => this._afterBook(), progress: () => this.s.dishes, daily: dailyId });
+    this.screens = ['title', 'pause', 'settings', 'dish', 'results', 'loading', 'nogl', 'shop', 'regulars', 'letter', 'scrapbook', 'photo', 'drinks', 'trophies'];
+    this.book = new RecipeBook({ onCook: (id) => this.practice(id), onClose: () => this._afterBook(), progress: () => this.s.dishes, daily: dailyId, lock: (b) => (this.career ? this.career.lockOf(b) : null) });
     this._bindMenus(); this._bindDial(); this._bindTray(); this._bindGame(); this._bindArt();
     this.bar = new DrinkBar({ game, settings, show: (n) => this.show(n), hideScreens: () => this.hideScreens(), save: () => saveSettings(this.s), startFree: () => this.startMode('free'), camera: (on) => onDrinkCam && onDrinkCam(on) });
     this._applySettings();
@@ -83,13 +85,15 @@ export class UI {
     click('btn-order-book', () => { const o = this.game.order || this.game.freeGoal; this.openBook(o && o.id); });
     click('btn-pause', () => this.pause());
     click('btn-resume', () => this.resume());
-    click('btn-restart', () => this.startMode(g.cozy ? 'cozy' : g.mode === 'results' ? 'orders' : g.mode));
+    click('btn-restart', () => this.startMode(g.variant || (g.cozy ? 'cozy' : g.mode === 'results' ? 'orders' : g.mode)));
+    click('btn-rush', () => this.startMode('rush'));
+    click('btn-dailych', () => this.startMode('daily'));
     click('btn-menu', () => this.toMenu());
     click('btn-sound', () => { this.pause(true, false); this.show('settings'); this._hzTip(); });
     click('btn-settings-close', () => { saveSettings(this.s); if (this.game.mode === 'menu') this.show('title'); else this.resume(); });
     click('btn-camera', () => this.onResetCamera());
     click('btn-next', () => { this.hideScreens(); this.game.paused = false; this.game.afterServe(); });
-    click('btn-again', () => this.startMode('orders'));
+    click('btn-again', () => this.startMode(this._lastMode || 'orders'));
     click('btn-res-free', () => this.startMode('free'));
     click('btn-res-menu', () => this.toMenu());
     click('tut-skip', () => this.finishTutorial());
@@ -104,11 +108,14 @@ export class UI {
     $('opt-atmos').innerHTML = ATMOS_LIST.map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
     $('opt-weather').innerHTML = WEATHER_LIST.map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
     $('opt-atmos').addEventListener('change', (e) => { this.s.atmos = e.target.value; this.onAtmos && this.onAtmos(this.s.atmos); this._applyTheme(); });
+    $('opt-season').innerHTML = '<option value="auto">📅 Follow the calendar</option>' + SEASONS.map(([k, i, n]) => `<option value="${k}">${i} ${n}</option>`).join('');
+    $('opt-season').addEventListener('change', (e) => { this.s.season = e.target.value; saveSettings(this.s); if (this.career) { this.career.applySeason(); this.career.refreshTitle(); } });
     $('opt-weather').addEventListener('change', (e) => { this.s.weather = e.target.value; this.onWeather && this.onWeather(this.s.weather); });
   }
   _applySettings() {
     $('vol-music').value = this.s.music; $('vol-sfx').value = this.s.sfx;
     $('opt-guide').checked = this.s.guide; $('opt-hints').checked = this.s.hints; $('opt-quality').value = this.s.quality;
+    $('opt-season').value = this.s.season || 'auto';
     $('opt-atmos').value = this.s.atmos; $('opt-weather').value = this.s.weather; $('opt-smooth').value = this.s.smooth; $('opt-radio').value = this.s.radio || 0;
     this._applyTheme();
     audio.setVolumes(this.s.music, this.s.sfx);
@@ -131,7 +138,8 @@ export class UI {
     el.classList.remove('hidden');
   }
   _updateBest() {
-    $('best-score').textContent = this.s.best ? `🏆 Best round: ${this.s.best} / 500` : '';
+    $('best-score').textContent = [this.s.best ? `🏆 Best round ${this.s.best} / 500` : '', this.s.rushBest ? `⚡ Rush best ${this.s.rushBest}` : '', this.s.daily[dayKey()] ? `📅 Today ${this.s.daily[dayKey()]}` : ''].filter(Boolean).join(' · ');
+    if (this.career) this.career.refreshTitle();
     const d = bookById(dailyId());
     this._checkIn();
     $('daily').innerHTML = `<span class="d-kicker">✨ Today’s special</span><span class="d-dish">${d.icon} ${d.title}</span><span class="d-bonus">+🪙10 bonus · tap to cook</span>`;
@@ -151,6 +159,7 @@ export class UI {
       if (this.decor) setTimeout(() => this.decor.react(3), 900);
     }
     const st = streakOf(this.s.visits), g = this._gift;
+    best(this.s, 'bestStreak', st);
     $('visit-line').innerHTML = `🐾 ${g ? `Noxie saved you a treat: <b>+🪙${g.coins}</b> · ` : ''}${st}-day streak${g && g.milestone ? ' 🎉' : ''}`;
     $('visit-line').classList.remove('hidden');
     const unread = LOVE_NOTES.filter((n, i) => this._letterOpen(n) && !this.s.lettersRead.includes(i)).length, badge = $('notes-new');
@@ -285,7 +294,7 @@ export class UI {
     let msg = '📔 Saved to your Scrapbook';
     try {
       if (await albumCount() >= ALBUM_MAX) msg = `📔 The Scrapbook is full (${ALBUM_MAX}). Remove a photo to add more`;
-      else await albumPut({ at: Date.now(), title: info.title || 'My dish', stars: info.stars || 0, caption: '', url: await toJpeg(url) });
+      else { await albumPut({ at: Date.now(), title: info.title || 'My dish', stars: info.stars || 0, caption: '', url: await toJpeg(url) }); this.game.emit('stat', 'photos'); }
     } catch { msg = '📔 Couldn\'t save to the Scrapbook in this browser. Tap Share to keep it'; }
     $('dish-rewards').insertAdjacentHTML('beforeend', `<span class="rw note">${msg}</span>`);
   }
@@ -315,6 +324,7 @@ export class UI {
   /** Free Cook with a recipe from the book as the goal: hints, guide chips and scoring follow it. */
   practice(id) {
     const entry = bookById(id); if (!entry) return;
+    const lk = this.career && this.career.lockOf(entry); if (lk && lk.block) return;
     this.startMode('free');
     this.game.freeGoal = orderFrom(entry, ['👩‍🍳', 'Practice'], { level: entry.levels[0], patience: 9999 });
     $('order-card').classList.remove('hidden');
@@ -328,13 +338,16 @@ export class UI {
     this.game.start(mode);
     const free = mode === 'free';
     $('order-card').classList.toggle('hidden', free);
-    $('score-pill').classList.toggle('hidden', mode !== 'orders' || this.game.cozy);
+    this._lastMode = mode;
+    $('score-pill').classList.toggle('hidden', this.game.mode !== 'orders' || this.game.cozy);
     $('tutorial-panel').classList.toggle('hidden', mode !== 'tutorial');
     $('score-val').textContent = '0';
     if (mode === 'tutorial') this._renderTutorial();
     if (free) this.toast('Free Cook — experiment with heat & methods! 🍳', 'good');
     else if (mode === 'cozy') this.toast('Cozy Mode — no timers, no rush 🌙', 'good');
     else if (mode === 'orders') this.toast('Tip: drag empty space to look around · pinch to zoom', '');
+    else if (mode === 'rush') this.toast('⚡ Rush Hour! Customers keep coming · 3 lives · good dishes in a row build a combo', 'good');
+    else if (mode === 'daily') this.toast('📅 Daily Challenge: the same 5 orders for everyone today', 'good');
   }
   toMenu() {
     this.game.mode = 'menu'; this.game.paused = false;
@@ -416,13 +429,15 @@ export class UI {
     g.on('tutorial', () => this._renderTutorial());
     g.on('tutorialDone', () => this.finishTutorial());
     g.on('served', (d) => { const id = this._serveId = (this._serveId || 0) + 1; setTimeout(() => { if (id === this._serveId && g.foodLoc === 'served') this._showDish(d); }, 650); });
-    g.on('roundOver', ({ total, results }) => this._showResults(total, results));
+    g.on('roundOver', (d) => this._showResults(d));
+    g.on('left', ({ order }) => { this.toast(`${order.avatar} ${order.name} got tired of waiting and left 💔`, 'bad'); });
   }
   _renderOrder(o) {
     if (!o) return;
     $('cust-avatar').textContent = o.avatar;
     const m = this.game.mode;
-    $('order-num').textContent = m === 'tutorial' ? `Tutorial · ${o.name}` : m === 'free' ? 'Practice · Free Cook' : `${this.game.cozy ? '🌙 ' : ''}Order ${this.game.orderIdx + 1} / ${this.game.orders.length} · ${o.name}`;
+    const g = this.game, v = g.variant;
+    $('order-num').textContent = m === 'tutorial' ? `Tutorial · ${o.name}` : m === 'free' ? 'Practice · Free Cook' : v === 'rush' ? `⚡ Rush · #${g.orderIdx + 1} · ${'❤️'.repeat(Math.max(0, g.lives))}${'🖤'.repeat(Math.max(0, 3 - g.lives))} · ${o.name}` : `${v === 'daily' ? '📅 Daily · ' : g.cozy ? '🌙 ' : ''}Order ${g.orderIdx + 1} / ${g.orders.length} · ${o.name}`;
     const gr = $('order-greet'); gr.textContent = o.greet ? `“${o.greet}”` : ''; gr.classList.toggle('hidden', !o.greet);
     $('order-card').classList.toggle('special', o.id === dailyId());
     $('order-recipe').textContent = `${o.icon || RECIPE_ICONS[o.recipe]} ${orderTitle(o)}`;
@@ -469,7 +484,7 @@ export class UI {
       $('dish-score').textContent = '';
       $('dish-breakdown').innerHTML = '';
       $('dish-quote').textContent = onlyDrink ? (drunk ? `${drunk.name}: ${drunk.blurb}` : d.drink.note) : d.text;
-      $('dish-rewards').innerHTML = this.bar.reward(d);
+      $('dish-rewards').innerHTML = this.bar.reward(d) + (this.career ? this.career.reward(d) : '');
       $('btn-next').textContent = 'Cook another';
     } else {
       const r = d.result;
@@ -478,27 +493,32 @@ export class UI {
       $('dish-score').textContent = r.total;
       $('dish-breakdown').innerHTML = r.lines.map((l) => `<li><span>${l.label}<small>${l.note}</small></span><b>${l.pts}${l.max ? ' / ' + l.max : ''}</b></li>`).join('');
       $('dish-quote').textContent = `${d.order.avatar} “${d.quote}”`;
-      $('dish-rewards').innerHTML = this.bar.reward(d) + this._reward(d);
-      const last = g.mode === 'orders' && g.orderIdx + 1 >= g.orders.length;
-      $('btn-next').textContent = g.mode === 'tutorial' ? 'Finish tutorial' : g.mode === 'free' ? 'Cook it again' : last ? 'See results' : 'Next order';
-      if (g.mode === 'orders') { $('score-val').textContent = g.roundScore; const p = $('score-pill'); p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
+      $('dish-rewards').innerHTML = (r.rush ? `<span class="rw coin">⚡ ${+r.rush.mult.toFixed(2)}× combo · +${r.rush.points} pts</span>` : '') + this.bar.reward(d) + this._reward(d) + (this.career ? this.career.reward(d) : '');
+      const last = g.mode === 'orders' && g.variant !== 'rush' && g.orderIdx + 1 >= g.orders.length;
+      $('btn-next').textContent = g.mode === 'tutorial' ? 'Finish tutorial' : g.mode === 'free' ? 'Cook it again' : g.variant === 'rush' ? 'Next customer' : last ? 'See results' : 'Next order';
+      if (g.mode === 'orders') { $('score-val').textContent = g.roundScore + (g.variant === 'rush' && g.combo > 1 ? ` · ${g.combo}🔗` : ''); const p = $('score-pill'); p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
       if (r.stars >= 3) audio.chime(); else if (r.stars >= 2) audio.ding(); else audio.fail();
       for (let i = 0; i < r.stars; i++) setTimeout(() => audio.stamp(), 260 + i * 150);
     }
     this.show('dish');
   }
-  _showResults(total, results) {
-    const starsSum = results.reduce((a, r) => a + r.result.stars, 0);
-    const avg = Math.round(starsSum / results.length);
+  _showResults({ total, results, variant = null, maxCombo = 0 }) {
+    const s = this.s, starsSum = results.reduce((a, r) => a + r.result.stars, 0), avg = results.length ? Math.round(starsSum / results.length) : 0;
+    $('res-title').textContent = variant === 'rush' ? '⚡ Rush Hour over!' : variant === 'daily' ? '📅 Daily Challenge done!' : 'Shift Complete!';
     $('res-stars').innerHTML = starHTML(avg);
     $('res-total').textContent = `${total} pts`;
-    const isBest = total > this.s.best;
-    if (isBest) { this.s.best = total; saveSettings(this.s); }
-    $('res-best').textContent = isBest ? '🏆 New best score!' : `Best: ${this.s.best} · ⭐ ${starsSum} / 15 stars`;
-    $('res-list').innerHTML = results.map(({ order, result }) => `<li><span>${order.avatar} ${orderTitle(order)}<small>${[levelLabel(order)].concat((order.extras || []).map(sideLabel), (order.fill || []).map((k) => fillLabel(k, order.recipe))).join(' · ')}</small></span><b>${'⭐'.repeat(result.stars) || '—'} ${result.total}</b></li>`).join('');
+    let line;
+    if (variant === 'rush') { const isBest = total > (s.rushBest || 0); if (isBest) s.rushBest = total; line = `${isBest ? '🏆 New Rush best!' : `Best: ${s.rushBest}`} · ${results.length} served · best combo ${maxCombo}×`; }
+    else if (variant === 'daily') { const k = dayKey(), was = s.daily[k] || 0; s.daily[k] = Math.max(was, total); if (!s.dailyDays.includes(k)) s.dailyDays.push(k); line = `${total > was ? '🏆 Your best today!' : `Today's best: ${s.daily[k]}`} · ${s.dailyDays.length} dailies finished`; }
+    else { const isBest = total > s.best; if (isBest) s.best = total; line = isBest ? '🏆 New best score!' : `Best: ${s.best} · ⭐ ${starsSum} / 15 stars`; }
+    saveSettings(s);
+    $('res-best').textContent = line;
+    $('res-list').innerHTML = results.map(({ order, result }) => `<li><span>${order.avatar} ${orderTitle(order)}<small>${[levelLabel(order)].concat((order.extras || []).map(sideLabel), (order.fill || []).map((k) => fillLabel(k, order.recipe))).join(' · ')}</small></span><b>${'⭐'.repeat(result.stars) || '—'} ${result.rush ? result.rush.points : result.total}</b></li>`).join('') || '<li><span>Nobody got served this time</span></li>';
+    $('res-rewards').innerHTML = this.career ? this.career.roundOver({ results, variant, maxCombo }) : '';
     this.show('results');
     audio.ding();
   }
+  save() { saveSettings(this.s); }
   toast(text, kind = '') {
     const t = $('toast');
     t.className = 'toast ' + kind; t.textContent = text;

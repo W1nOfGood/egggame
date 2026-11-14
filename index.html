@@ -10,7 +10,7 @@
   <title>Crack &amp; Sizzle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=mvy6luvj">
+  <link rel="stylesheet" href="style.css?v=mwgm1jmg">
 </head>
 <body>
   <div id="app">
@@ -114,10 +114,15 @@
       <div class="panel title-panel">
         <div class="logo"><span class="logo-egg">🍳</span><h1>Crack <i>&amp;</i> Sizzle</h1></div>
         <p class="sub">A cozy little egg kitchen — eggs, omelettes, fried rice, bacon &amp; more</p>
+        <p id="rank-line" class="rank-line"></p>
         <p id="visit-line" class="visit-line hidden"></p>
         <button id="daily" class="daily"></button>
         <div class="menu-buttons">
           <button id="btn-play" class="big-btn primary">Order Mode</button>
+          <div class="btn-pair">
+            <button id="btn-rush" class="big-btn rush-cta">⚡ Rush Hour</button>
+            <button id="btn-dailych" class="big-btn rush-cta">📅 Daily</button>
+          </div>
           <div class="btn-pair">
             <button id="btn-cozy" class="big-btn">🌙 Cozy Mode</button>
             <button id="btn-free" class="big-btn">Free Cook</button>
@@ -132,8 +137,9 @@
           </div>
           <div class="btn-pair">
             <button id="btn-scrapbook" class="big-btn soft">📔 Scrapbook</button>
-            <button id="btn-tutorial" class="big-btn soft">How to Play</button>
+            <button id="btn-trophies" class="big-btn soft">🏆 Trophies <small id="tro-count"></small></button>
           </div>
+          <button id="btn-tutorial" class="big-btn soft slim">How to Play</button>
         </div>
         <p id="best-score" class="tiny"></p>
         <p class="tiny muted">Drag empty space to look around · pinch to zoom · drag objects to move them</p>
@@ -161,6 +167,7 @@
         <label class="row">Radio <select id="opt-radio"></select></label>
         <label class="row">Kitchen mood <select id="opt-atmos"></select></label>
         <label class="row">Weather <select id="opt-weather"></select></label>
+        <label class="row">Season <select id="opt-season"></select></label>
         <label class="row">Quality <select id="opt-quality"><option value="auto">Auto</option><option value="high">Max</option><option value="low">Battery saver</option></select></label>
         <label class="row">Smoothness <select id="opt-smooth"><option value="120">Smoothest (up to 120 fps)</option><option value="detail">Sharpest detail</option></select></label>
         <p id="hz-tip" class="hz-tip hidden"></p>
@@ -223,6 +230,14 @@
       </div>
     </div>
 
+    <div id="screen-trophies" class="screen dim hidden">
+      <div class="panel wide-panel">
+        <header class="wide-head"><h2>🏆 Trophies</h2><span id="tro-count2" class="tiny"></span><button id="tro-close" class="book-close" aria-label="Close">✕</button></header>
+        <div id="tro-rank" class="tro-rank"></div>
+        <div id="tro-grid" class="tro-grid"></div>
+      </div>
+    </div>
+
     <div id="screen-letter" class="screen dim hidden">
       <div class="letter" role="dialog" aria-label="Love note">
         <div class="letter-seal">🌹</div>
@@ -260,11 +275,12 @@
 
     <div id="screen-results" class="screen hidden">
       <div class="panel">
-        <h2>Shift Complete!</h2>
+        <h2 id="res-title">Shift Complete!</h2>
         <div id="res-stars" class="stars"></div>
         <div id="res-total" class="big-score">0</div>
         <p id="res-best" class="tiny"></p>
         <ul id="res-list" class="breakdown"></ul>
+        <div id="res-rewards" class="rewards"></div>
         <div class="menu-buttons">
           <button id="btn-again" class="big-btn primary">Play Again</button>
           <button id="btn-res-free" class="big-btn">Free Cook</button>
@@ -285,6 +301,6 @@
       </div>
     </div>
   </div>
-  <script src="game.bundle.js?v=mvy6luvj"></script>
+  <script src="game.bundle.js?v=mwgm1jmg"></script>
 </body>
 </html>

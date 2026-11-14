@@ -21,22 +21,35 @@ export function orderFrom(entry, cust, opts = {}) {
   };
 }
 
-export function makeRound(hearts = {}) {
-  const c = pickCustomers(5, hearts);
-  const tier = (d) => shuffle(BOOK.filter((b) => b.diff === d));
+/** Can this recipe be ordered? Unlocked by chef level, and seasonal ones only in their season. */
+export const available = (e, { level = 99, season = null } = {}) => (e.unlock || 1) <= level && (!e.season || e.season === season);
+export function makeRound(hearts = {}, opts = {}) {
+  const c = pickCustomers(5, hearts), pool = BOOK.filter((b) => available(b, opts));
+  const tier = (d) => shuffle(pool.filter((b) => b.diff === d));
   const t1 = tier(1), t2 = tier(2), t3 = tier(3);
   const used = new Set();
-  const take = (...pools) => { for (const p of pools) for (const e of p) if (!used.has(e.id)) { used.add(e.id); return e; } return BOOK[0]; };
+  const take = (...pools) => { for (const p of pools) for (const e of p) if (!used.has(e.id)) { used.add(e.id); return e; } return pool[0]; };
   const slots = [[1, () => take(t1)], [2, () => take(t1, t2)], [2, () => take(t2)], [2, () => take(t2)], [3, () => take(t3, t2)]];
   const round = slots.map(([maxDiff, next], i) => {
     // regulars sometimes ask for their favourite dish
     const fav = bookById(c[i].fav);
-    if (fav && !used.has(fav.id) && fav.diff <= maxDiff && Math.random() < 0.4) { used.add(fav.id); return orderFrom(fav, c[i]); }
+    if (fav && available(fav, opts) && !used.has(fav.id) && fav.diff <= maxDiff && Math.random() < 0.4) { used.add(fav.id); return orderFrom(fav, c[i]); }
     return orderFrom(next(), c[i]);
   });
   // from the second customer on, about half want something to drink as well
   round.forEach((o, i) => { if (i && Math.random() < 0.55) o.drink = drinkFor(c[i].drink, slots[i][0]); });
   return round;
+}
+/** One Rush Hour customer: dishes get harder and customers less patient as the rush goes on. */
+export function rushOrder(n, hearts = {}, opts = {}) {
+  const maxDiff = Math.min(3, 1 + Math.floor(n / 3));
+  const all = BOOK.filter((b) => available(b, opts) && b.diff <= maxDiff), pool = all.filter((b) => b.id !== opts.last);
+  const c = pick(pickCustomers(5, hearts)), fav = bookById(c.fav);
+  const e = fav && pool.includes(fav) && Math.random() < 0.3 ? fav : pick(pool.length ? pool : all);
+  const o = orderFrom(e, c);
+  o.patience = Math.round(o.patience * Math.max(0.5, 1 - n * 0.04));
+  if (n && Math.random() < 0.4) o.drink = drinkFor(c.drink, maxDiff);
+  return o;
 }
 export const tutorialOrder = () => orderFrom(bookById('sunny'), ['🐣', 'Chick'], { level: 'runny', patience: 9999 });
 
@@ -109,7 +122,7 @@ function evalRice(rice, o) {
 }
 
 // ----- pancakes & french toast: a stack of two-sided items, finished with toppings instead of salt and pepper
-export const isSweet = (r) => r === 'pancake' || r === 'frenchtoast';
+export const isSweet = (r) => r === 'pancake' || r === 'frenchtoast' || r === 'waffle';
 export const artNeeds = (o, art) => (o.toppings || []).filter((id) => !(art && art.has(id)));
 function evalSweet(foods, o, ings, art) {
   const stack = ings.filter((i) => i.kind === o.recipe), want = o.stack || 1, name = RECIPE_NAMES[o.recipe];

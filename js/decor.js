@@ -99,7 +99,7 @@ export function buildDecor(scene, mats, fx) {
   const cushion = mesh(new THREE.SphereGeometry(0.62, 28, 14), M.pink); cushion.scale.set(1, 0.22, 1); cushion.position.y = 0.08; cushion.visible = false; nox.add(cushion);
   const noxHit = new THREE.Mesh(new THREE.SphereGeometry(0.75, 10, 8), new THREE.MeshBasicMaterial({ visible: false })); noxHit.position.y = 0.7; nox.add(noxHit);
   const noxState = { hop: 0, flop: 0, blink: 2, twitch: 3, hearts: 0, mood: 0 };
-  const pet = () => { noxState.hop = 1; noxState.hearts = 0.9; audio.purr && audio.purr(); };
+  const pet = () => { noxState.hop = 1; noxState.hearts = 0.9; audio.purr && audio.purr(); nox.userData.onPet && nox.userData.onPet(); };
   tag(nox, pet); pickables.push(nox);
 
   // ---------------- Fairy lights draped along the top of the backsplash ----------------
@@ -229,6 +229,19 @@ export function buildDecor(scene, mats, fx) {
       s.hearts -= dt;
       if (Math.random() < dt * 9) { head.getWorldPosition(_w); fx.emit('heart', _w.setY(_w.y + 0.45), { spread: 0.4 }); }
     }
+    // tricks, eating and keeping an eye on the cooking
+    if (s.trick) {
+      const tr = s.trick; tr.t += dt; const k = Math.min(1, tr.t / tr.dur), e = k * k * (3 - 2 * k);
+      if (tr.name === 'spin') body.rotation.y = e * Math.PI * 2;
+      else if (tr.name === 'backflip') { body.rotation.x = -e * Math.PI * 2; body.position.y += Math.sin(Math.PI * k) * 0.6; }
+      else if (tr.name === 'wave') { wings[0].rotation.y = 0.5 + Math.sin(tr.t * 18) * 0.9; wings[1].rotation.y = -0.5 - Math.sin(tr.t * 18) * 0.9; body.position.y += Math.abs(Math.sin(tr.t * 9)) * 0.08; }
+      else if (tr.name === 'pounce') { body.position.z = Math.sin(Math.PI * k) * 0.35; body.position.y += Math.sin(Math.PI * k) * 0.28; }
+      else if (tr.name === 'sing') { head.rotation.z = Math.sin(tr.t * 9) * 0.22; if (Math.random() < dt * 8) { head.getWorldPosition(_w); fx.emit('sparkle', _w.setY(_w.y + 0.45), { spread: 0.35 }); } }
+      if (k >= 1) { body.rotation.y = 0; body.rotation.x = 0; body.position.z = 0; s.trick = null; }
+    }
+    if (s.eat > 0) { s.eat -= dt; head.rotation.x = Math.max(0, Math.sin(s.eat * 22)) * 0.32; } else head.rotation.x *= 0.8;
+    const look = nox.userData.look;
+    if (look) { nox.getWorldPosition(_w); const yaw = Math.atan2(look.x - _w.x, look.z - _w.z) - nox.rotation.y; head.rotation.y += (Math.max(-0.8, Math.min(0.8, Math.atan2(Math.sin(yaw), Math.cos(yaw)))) - head.rotation.y) * Math.min(1, dt * 4); }
     // gentle sway of the mug steam
     steamT -= dt; if (steamT < 0) { steamT = 0.32; mug.getWorldPosition(_w); fx.emit('wisp', _w.setY(0.6), { spread: 0.18 }); }
     // fairy-light twinkle (cheap: 34 instance colours at 30 Hz)
@@ -267,6 +280,11 @@ export function buildDecor(scene, mats, fx) {
       for (const [k, h] of Object.entries(hats)) h.visible = k === id;
       bow.visible = id !== 'hat-witch' && id !== 'hat-chef';
     },
+    set onPet(f) { nox.userData.onPet = f; },
+    trick(name) { noxState.trick = { name, t: 0, dur: { spin: 0.9, backflip: 1.0, wave: 1.4, pounce: 0.7, sing: 2.2 }[name] || 1 }; if (name === 'sing') { audio.chime(); noxState.hearts = 1.6; } },
+    eat() { noxState.eat = 1; noxState.hearts = 0.8; },
+    look(v) { nox.userData.look = v; },
+    headPosition() { return head.getWorldPosition(new THREE.Vector3()); },
     setCushion(on) { cushion.visible = on; body.position.y = 0; nox.userData.lift = on ? 0.12 : 0; },
     radio: radioState,
     /** Noxie reacts to a served dish: 3 stars = happy hop + hearts, 1 star = dramatic flop. */

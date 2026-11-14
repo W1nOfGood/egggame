@@ -108,6 +108,7 @@ export class Interactor {
         if (toy.drag) { d.toy = toy; return this.beginMove(toy.obj, 'toy', e, d, hit.point); }
         d.kind = 'toyTap'; d.toy = toy; break;
       }
+      case 'waffleIron': g.waffle.tap(); return;
       case 'knob': d.heat0 = g.heat; break;
       case 'crackEgg':
         if (g.crack.stage === 'hover') g.crackTap();
@@ -400,7 +401,7 @@ export class Interactor {
     if (this.game.decorating) { this.setRay(e); this.canvas.style.cursor = this.ray.intersectObject(this.game.art.caddy, true).length ? 'pointer' : 'crosshair'; return; }
     const now = performance.now(); if (now - (this._hoverT || 0) < 60) return; this._hoverT = now;
     const hit = this.pick(e);
-    this.canvas.style.cursor = hit ? (hit.kind === 'crackEgg' || hit.kind === 'salt' || hit.kind === 'pepper' || hit.kind === 'artItem' || hit.kind === 'drinkItem' || hit.kind === 'toy' || hit.kind === 'pet' ? 'pointer' : 'grab') : 'default';
+    this.canvas.style.cursor = hit ? (hit.kind === 'crackEgg' || hit.kind === 'salt' || hit.kind === 'pepper' || hit.kind === 'artItem' || hit.kind === 'drinkItem' || hit.kind === 'toy' || hit.kind === 'pet' || hit.kind === 'waffleIron' ? 'pointer' : 'grab') : 'default';
   }
 }
 
